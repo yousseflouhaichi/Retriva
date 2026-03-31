@@ -8,8 +8,9 @@ Other modules should import `get_settings()` and never read `os.environ` directl
 from __future__ import annotations
 
 from functools import lru_cache
+from typing import Self
 
-from pydantic import Field
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -29,6 +30,33 @@ class Settings(BaseSettings):
 
     embeddings_model: str = Field(default="text-embedding-3-large", alias="EMBEDDINGS_MODEL")
     embeddings_dim: int = Field(default=3072, alias="EMBEDDINGS_DIM")
+    embedding_batch_size: int = Field(default=16, alias="EMBEDDING_BATCH_SIZE")
+
+    chunk_max_tokens: int = Field(default=512, alias="CHUNK_MAX_TOKENS")
+    chunk_overlap_tokens: int = Field(default=64, alias="CHUNK_OVERLAP_TOKENS")
+    tiktoken_encoding: str = Field(default="cl100k_base", alias="TIKTOKEN_ENCODING")
+
+    unstructured_timeout_seconds: float = Field(default=120.0, alias="UNSTRUCTURED_TIMEOUT_SECONDS")
+
+    qdrant_upsert_batch_size: int = Field(default=64, alias="QDRANT_UPSERT_BATCH_SIZE")
+
+    @model_validator(mode="after")
+    def validate_batch_and_chunk_fields(self) -> Self:
+        """
+        Keep numeric tuning parameters in a sane range so workers do not mis-chunk or starve APIs.
+        """
+
+        if self.embedding_batch_size < 1:
+            raise ValueError("EMBEDDING_BATCH_SIZE must be at least 1")
+        if self.qdrant_upsert_batch_size < 1:
+            raise ValueError("QDRANT_UPSERT_BATCH_SIZE must be at least 1")
+        if self.chunk_max_tokens < 1:
+            raise ValueError("CHUNK_MAX_TOKENS must be at least 1")
+        if self.chunk_overlap_tokens < 0:
+            raise ValueError("CHUNK_OVERLAP_TOKENS must be non-negative")
+        if self.chunk_overlap_tokens >= self.chunk_max_tokens:
+            raise ValueError("CHUNK_OVERLAP_TOKENS must be less than CHUNK_MAX_TOKENS")
+        return self
 
 
 @lru_cache(maxsize=1)

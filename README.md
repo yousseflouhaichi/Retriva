@@ -30,8 +30,9 @@ uv run arq backend.workers.ingestion_worker.WorkerSettings
 ```
 
 ### Try ingestion
+- Set `OPENAI_API_KEY` in `.env` (embeddings are required for indexing).
 - `POST /ingest/upload?company_id=demo` with multipart form file `file`
-- Poll `GET /ingest/status/{job_id}` until `ready`
+- Poll `GET /ingest/status/{job_id}` until `ready` (response includes `chunks_indexed` when using the JSON status format)
 
 ### Try streaming query
 - `POST /query/stream` with JSON `{ "company_id": "demo", "question": "hello" }`

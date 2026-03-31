@@ -24,6 +24,7 @@ class IngestStatusResponse(BaseModel):
     job_id: str
     status: Literal["queued", "processing", "ready", "failed"]
     detail: str | None = None
+    chunks_indexed: int | None = None
     meta: dict[str, Any] | None = None
 
 

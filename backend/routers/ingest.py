@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from uuid import uuid4
 
@@ -9,12 +10,70 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 
 from backend.core.config import Settings, get_settings
 from backend.models.schemas import IngestStatusResponse, IngestUploadResponse
+from backend.services.collections import company_collection_name
 
 router = APIRouter()
 
 
 def _job_key(job_id: str) -> str:
     return f"ingest:job:{job_id}"
+
+
+def _ingest_status_from_redis_value(job_id: str, data: str) -> IngestStatusResponse:
+    """
+    Map a Redis job value (JSON or legacy string) to an API response model.
+    """
+
+    text = data.strip()
+    if text.startswith("{"):
+        try:
+            obj: dict[str, object] = json.loads(text)
+            status_val = obj.get("status")
+            if status_val == "processing":
+                meta = {key: value for key, value in obj.items() if key != "status"}
+                return IngestStatusResponse(
+                    job_id=job_id,
+                    status="processing",
+                    meta=meta or None,
+                )
+            if status_val == "ready":
+                raw_chunks = obj.get("chunks_indexed")
+                chunks_indexed = int(raw_chunks) if raw_chunks is not None else None
+                meta = {
+                    key: value
+                    for key, value in obj.items()
+                    if key not in ("status", "chunks_indexed")
+                }
+                return IngestStatusResponse(
+                    job_id=job_id,
+                    status="ready",
+                    chunks_indexed=chunks_indexed,
+                    meta=meta or None,
+                )
+            if status_val == "failed":
+                detail = str(obj.get("detail") or "Ingestion failed")
+                meta = {key: value for key, value in obj.items() if key not in ("status", "detail")}
+                return IngestStatusResponse(
+                    job_id=job_id,
+                    status="failed",
+                    detail=detail,
+                    meta=meta or None,
+                )
+        except (json.JSONDecodeError, TypeError, ValueError):
+            pass
+
+    if text == "processing":
+        return IngestStatusResponse(job_id=job_id, status="processing")
+    if text == "ready":
+        return IngestStatusResponse(job_id=job_id, status="ready")
+    if text.startswith("failed:"):
+        return IngestStatusResponse(
+            job_id=job_id,
+            status="failed",
+            detail=text.removeprefix("failed:").strip(),
+        )
+
+    return IngestStatusResponse(job_id=job_id, status="processing", detail=text)
 
 
 @router.post("/upload", response_model=IngestUploadResponse, status_code=202)
@@ -30,6 +89,10 @@ async def ingest_upload(
     try:
         if not company_id.strip():
             raise ValueError("company_id is required")
+        try:
+            company_collection_name(company_id)
+        except ValueError as exc:
+            raise ValueError(str(exc)) from exc
 
         job_id = uuid4().hex
         upload_dir = Path(settings.upload_dir)
@@ -77,15 +140,6 @@ async def ingest_status(job_id: str, settings: Settings = Depends(get_settings))
             return IngestStatusResponse(job_id=job_id, status="queued", detail="Job not yet started")
 
         data = raw.decode() if isinstance(raw, bytes) else str(raw)
-
-        # Stored as a simple string for the minimal scaffold.
-        if data == "processing":
-            return IngestStatusResponse(job_id=job_id, status="processing")
-        if data == "ready":
-            return IngestStatusResponse(job_id=job_id, status="ready")
-        if data.startswith("failed:"):
-            return IngestStatusResponse(job_id=job_id, status="failed", detail=data.removeprefix("failed:").strip())
-
-        return IngestStatusResponse(job_id=job_id, status="processing", detail=data)
+        return _ingest_status_from_redis_value(job_id, data)
     except Exception as exc:
         raise HTTPException(status_code=500, detail="Failed to read job status") from exc
