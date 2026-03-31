@@ -1,0 +1,59 @@
+---
+description: Core architecture decisions and project structure
+alwaysApply: true
+---
+
+# Architecture
+
+## Application architecture
+Modular monolith. Single deployable unit with strict internal boundaries.
+Routers handle HTTP only. Services contain all business logic.
+Services never import from routers. Workers are completely separate processes.
+
+## Project structure
+```
+multimodal-rag/
+├── AGENTS.md
+├── .cursor/
+├── .venv/
+├── backend/
+│   ├── main.py
+│   ├── core/
+│   │   ├── config.py
+│   │   └── qdrant_client.py
+│   ├── models/
+│   │   └── schemas.py
+│   ├── routers/
+│   │   ├── ingest.py
+│   │   ├── query.py
+│   │   └── collections.py
+│   ├── services/
+│   │   ├── parser.py
+│   │   ├── chunker.py
+│   │   ├── embedder.py
+│   │   ├── captioner.py
+│   │   ├── retriever.py
+│   │   ├── query_transformer.py
+│   │   └── generator.py
+│   └── workers/
+│       └── ingestion_worker.py
+├── frontend/
+│   └── src/
+│       ├── components/
+│       ├── hooks/
+│       └── pages/
+└── docker-compose.yml
+```
+
+## Multi-tenancy
+- Every Qdrant collection is named company_{company_id}
+- Every BM25 index is keyed by company_id
+- company_id is required on every ingestion and query request
+- Never mix data across collections
+- Validate company_id exists before any operation
+
+## Infrastructure
+- Qdrant, Redis, Unstructured run via docker-compose only
+- Backend and ARQ worker run locally during development
+- All environment variables loaded from .env via pydantic-settings
+- Single .venv at project root, never per-folder venvs

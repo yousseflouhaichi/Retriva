@@ -1,0 +1,40 @@
+---
+description: Frontend rules for React, Vite, Tailwind, and shadcn/ui
+globs: frontend/**/*
+---
+
+# Frontend Rules
+
+## Stack
+- React with Vite only
+- Tailwind CSS utility classes only
+- shadcn/ui for all UI components
+- Never use plain CSS files, CSS modules, or inline styles
+- Never use HTML form elements, use React controlled components
+
+## Component rules
+- Components are small and single-purpose
+- Props are typed with TypeScript interfaces or PropTypes
+- State managed with useState or useReducer only
+- No external state management libraries unless explicitly approved
+
+## Streaming
+- All query responses use a custom useSSE hook
+- Never use plain fetch without streaming support for query endpoints
+- Tokens append to message state as they arrive
+- Show loading indicator while waiting for first token
+
+## Required components
+- UploadZone: drag and drop, polls GET /ingest/status/{job_id} every 2s
+  until status is ready or failed, shows status transitions visually
+- ChatWindow: streaming chat, text appears token by token
+- MessageBubble: renders user and assistant messages differently
+- SourceCard: document name, page number, chunk preview, image thumbnail
+  if source was an image or chart
+- WorkspaceSelector: dropdown to switch between company workspaces
+
+## API integration
+- Base URL from environment variable VITE_API_URL
+- Never hardcode localhost URLs in component code
+- Handle 4xx and 5xx errors with friendly user-facing messages
+- Never show raw error objects or stack traces to the user

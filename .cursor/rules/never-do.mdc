@@ -1,0 +1,36 @@
+---
+description: Hard constraints that must never be violated regardless of context
+alwaysApply: true
+---
+
+# Never Do
+
+These are hard stops. No exceptions, no matter the justification.
+
+## Infrastructure
+- Never use FastAPI BackgroundTasks for ingestion, use ARQ workers
+- Never install Qdrant, Redis, or Unstructured locally, use docker-compose
+- Never use pip, always uv
+
+## Data integrity
+- Never query across company Qdrant collections
+- Never store embeddings in memory, always persist to Qdrant
+- Never skip namespacing by company_id on any Qdrant operation
+
+## Retrieval
+- Never do naive single-query dense-only retrieval
+- Never skip query transformation before retrieval
+- Never send raw user query directly to Qdrant without transformation
+
+## LLM and streaming
+- Never buffer the full LLM response, always stream via SSE
+- Never fabricate citations or sources
+- Never let the model answer outside of retrieved context
+
+## Code quality
+- Never use Pydantic v1 syntax anywhere
+- Never read os.environ directly, always use core/config.py
+- Never hardcode model names, chunk sizes, URLs, or top-k values
+- Never use plain LangChain chains for the query pipeline, use LangGraph
+- Never let raw library exceptions bubble up to routers
+- Never use sync blocking calls inside async functions

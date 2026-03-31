@@ -1,0 +1,42 @@
+---
+description: Retrieval pipeline including hybrid search, RRF, reranking, and LangGraph
+globs: backend/services/retriever.py,backend/services/query_transformer.py,backend/services/generator.py
+---
+
+# Retrieval Pipeline
+
+## Query transformation (always runs first)
+1. Rewrite user query into 3 distinct variations via LLM call
+2. Generate a HyDE hypothetical document answer via LLM call
+3. Use all 4 strings (original + 3 rewrites) for dense retrieval
+4. Use original query only for BM25 sparse retrieval
+
+## Hybrid search
+- Dense: top 20 results per query variation, deduplicate by chunk_id
+- Sparse: top 20 results from BM25 index keyed by company_id
+- Merge with Reciprocal Rank Fusion using k=60
+- Never do single-query dense-only retrieval
+
+## Reranking
+- Rerank merged results with Cohere Rerank
+- Keep top 5 after reranking
+- Fetch parent chunk for each of the top 5 for full context
+
+## LangGraph pipeline
+- Query pipeline is a LangGraph graph, never a plain function chain
+- Nodes in order: transform_query, retrieve, rerank, fetch_parents, generate
+- State is a typed TypedDict passed between all nodes
+- Generate node streams output via SSE, never buffers full response
+
+## Hallucination control
+- System prompt must explicitly restrict answers to provided context only
+- Fallback message when answer not found:
+  "I could not find an answer to this in the uploaded documents"
+- Never fabricate citations
+
+## Source metadata returned per answer
+- document_name
+- page_number
+- chunk_text preview (first 200 chars)
+- image_path if source was an image or chart
+- rerank score

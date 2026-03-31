@@ -1,0 +1,51 @@
+---
+description: FastAPI backend patterns and ingestion pipeline rules
+globs: backend/**/*.py
+---
+
+# Backend Rules
+
+## FastAPI patterns
+- Every endpoint must be async
+- Routers validate input, call a service, return output, nothing more
+- Services never import from routers
+- Use FastAPI Depends for shared resources like Qdrant client and settings
+- Every endpoint must have a docstring
+- HTTP status codes:
+  - 202 for accepted async jobs
+  - 404 for missing resources
+  - 422 handled automatically by Pydantic
+  - 500 only for unexpected server errors with a safe message
+
+## Settings pattern
+- core/config.py is the single source of truth
+- lru_cache on get_settings() so settings load once per process
+- All values come from .env via pydantic-settings
+- Never read os.environ directly anywhere outside config.py
+
+## Schemas pattern
+- All request and response bodies are Pydantic v2 models in models/schemas.py
+- Never define inline schemas inside routers or services
+- Use Field() with descriptions for all schema fields
+
+## Ingestion pipeline
+- POST /ingest returns immediately with job_id and status queued
+- Processing runs entirely in ARQ worker, never in the request lifecycle
+- GET /ingest/status/{job_id} exposes job progress for frontend polling
+- Ingestion steps in order:
+  1. Parse with Unstructured.io
+  2. Extract and caption images with GPT-4o vision
+  3. Apply hierarchical chunking (512 token small, 2048 token parent)
+  4. Embed with text-embedding-3-large
+  5. Store in Qdrant and BM25 index
+- Every chunk payload must include:
+  company_id, document_name, page_number, chunk_type,
+  parent_chunk_id, image_path (if applicable)
+- Embed this string, not just chunk text:
+  "{document_name} | page {page_number} | {section_header} | {chunk_text}"
+
+## Error handling
+- Every service function handles its own exceptions
+- Raise HTTPException with clear messages from routers
+- Log errors with function name, input summary, and exception message
+- Failed ARQ jobs must update status to failed with an error message
