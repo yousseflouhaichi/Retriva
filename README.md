@@ -55,7 +55,7 @@ uv run arq backend.workers.ingestion_worker.WorkerSettings
 
 ### Frontend (Vite + React + Tailwind)
 
-- Copy `frontend/.env.example` to `frontend/.env` and set **`VITE_API_URL`** to your API base (no trailing slash), e.g. `http://127.0.0.1:8080`.
+- For local dev, you can **omit `VITE_API_URL`**: the UI defaults to same-origin **`/api`**, and Vite proxies that to FastAPI (default `http://127.0.0.1:8080`, override with **`VITE_DEV_API_TARGET`**). That avoids CORS when the preview origin is not localhost. To call the API directly instead, set **`VITE_API_URL`** (no trailing slash), e.g. `http://127.0.0.1:8080`.
 - Install and run:
 
 ```bash

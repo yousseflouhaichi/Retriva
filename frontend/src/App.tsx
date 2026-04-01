@@ -116,9 +116,9 @@ export default function App() {
       <div className="flex min-h-screen flex-col items-center justify-center bg-background p-6 text-center">
         <h1 className="text-lg font-semibold text-foreground">Configuration needed</h1>
         <p className="mt-2 max-w-md text-sm text-muted-foreground">
-          Create <code className="rounded bg-muted px-1">frontend/.env</code> with{" "}
-          <code className="rounded bg-muted px-1">VITE_API_URL</code> pointing at your FastAPI server. See{" "}
-          <code className="rounded bg-muted px-1">frontend/.env.example</code>.
+          Set <code className="rounded bg-muted px-1">VITE_API_URL</code> for this production build (see{" "}
+          <code className="rounded bg-muted px-1">frontend/.env.example</code>). For local dev, omit it to use the
+          default <code className="rounded bg-muted px-1">/api</code> proxy.
         </p>
       </div>
     );
