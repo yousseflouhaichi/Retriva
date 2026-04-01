@@ -80,8 +80,13 @@ export function DocumentsPanel({ companyId, apiBaseUrl, compact = false, refresh
         return;
       }
       setData(parsed);
-    } catch {
-      setError("Could not reach the API (network or CORS).");
+    } catch (err) {
+      const base =
+        err instanceof TypeError
+          ? "Request was blocked (wrong URL, CORS, or offline)."
+          : "Could not reach the API (network or CORS).";
+      const detail = err instanceof Error && err.message ? ` ${err.message}` : "";
+      setError(`${base}${detail} Try VITE_API_URL=/api with the Vite proxy, or see frontend/.env.example.`);
       setData(null);
     } finally {
       setLoading(false);

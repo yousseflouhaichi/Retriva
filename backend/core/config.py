@@ -18,6 +18,11 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     environment: str = Field(default="development", alias="ENVIRONMENT")
+    cors_extra_allow_origins: str = Field(
+        default="",
+        alias="CORS_EXTRA_ALLOW_ORIGINS",
+        description="Comma-separated browser origins allowed by CORS (in addition to defaults), e.g. http://192.168.1.2:5173",
+    )
 
     openai_api_key: str = Field(default="", alias="OPENAI_API_KEY")
     cohere_api_key: str = Field(default="", alias="COHERE_API_KEY")
@@ -108,6 +113,16 @@ class Settings(BaseSettings):
         if self.document_list_default_limit > self.document_list_max_limit:
             raise ValueError("DOCUMENT_LIST_DEFAULT_LIMIT must not exceed DOCUMENT_LIST_MAX_LIMIT")
         return self
+
+    def cors_extra_allow_origins_list(self) -> list[str]:
+        """
+        Parse CORS_EXTRA_ALLOW_ORIGINS into non-empty trimmed origin strings.
+        """
+
+        raw = self.cors_extra_allow_origins.strip()
+        if not raw:
+            return []
+        return [part.strip() for part in raw.split(",") if part.strip()]
 
 
 @lru_cache(maxsize=1)

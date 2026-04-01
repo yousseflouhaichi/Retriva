@@ -10,5 +10,9 @@ export function getApiBaseUrl(): string {
   if (typeof raw !== "string" || raw.trim() === "") {
     throw new Error("VITE_API_URL must be set (see frontend/.env.example)");
   }
-  return raw.replace(/\/$/, "");
+  const trimmed = raw.trim();
+  if (trimmed.startsWith("/")) {
+    return trimmed.replace(/\/$/, "") || "";
+  }
+  return trimmed.replace(/\/$/, "");
 }
