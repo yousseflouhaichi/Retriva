@@ -81,13 +81,9 @@ export function DocumentsPanel({ companyId, apiBaseUrl, compact = false, refresh
       }
       setData(parsed);
     } catch (err) {
-      const base =
-        err instanceof TypeError
-          ? "Request failed (often CORS or wrong API port)."
-          : "Could not reach the API.";
-      const detail = err instanceof Error && err.message ? ` ${err.message}` : "";
+      const detail = err instanceof Error ? err.message : "Unknown error";
       setError(
-        `${base}${detail} In dev, remove VITE_API_URL from frontend/.env so the app uses /api, and set VITE_DEV_API_TARGET to your uvicorn URL (see frontend/.env.example).`,
+        `Could not load documents (${detail}). Is the API running at VITE_DEV_API_TARGET and reachable from the Vite proxy?`,
       );
       setData(null);
     } finally {

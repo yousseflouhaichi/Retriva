@@ -55,7 +55,8 @@ uv run arq backend.workers.ingestion_worker.WorkerSettings
 
 ### Frontend (Vite + React + Tailwind)
 
-- For local dev, you can **omit `VITE_API_URL`**: the UI defaults to same-origin **`/api`**, and Vite proxies that to FastAPI (default `http://127.0.0.1:8080`, override with **`VITE_DEV_API_TARGET`**). That avoids CORS when the preview origin is not localhost. To call the API directly instead, set **`VITE_API_URL`** (no trailing slash), e.g. `http://127.0.0.1:8080`.
+- Local dev **always** calls same-origin **`/api`** (ignore any `VITE_API_URL` in `frontend/.env`). Vite proxies `/api` to FastAPI; set **`VITE_DEV_API_TARGET`** (default `http://127.0.0.1:8080`) to match your `uvicorn --port`. This avoids CORS from embedded previews and mistaken `http://...` API URLs in `.env`.
+- Production builds still need **`VITE_API_URL`** set for the deployed API (see `frontend/.env.example`).
 - Install and run:
 
 ```bash
