@@ -5,19 +5,23 @@ export interface MessageBubbleProps {
   content: string;
   error?: string;
   isStreaming?: boolean;
+  compact?: boolean;
 }
 
-export function MessageBubble({ role, content, error, isStreaming }: MessageBubbleProps) {
+export function MessageBubble({ role, content, error, isStreaming, compact = false }: MessageBubbleProps) {
   const isUser = role === "user";
   return (
     <div
       className={cn(
-        "max-w-[85%] rounded-lg px-4 py-2 text-sm leading-relaxed",
-        isUser ? "ml-auto bg-primary text-primary-foreground" : "mr-auto border border-border bg-muted",
+        "max-w-[85%] rounded-lg leading-relaxed",
+        compact ? "px-3 py-1.5 text-xs" : "px-4 py-2 text-sm",
+        isUser
+          ? "ml-auto bg-primary text-primary-foreground shadow-sm"
+          : "mr-auto bg-muted/80 ring-1 ring-border/40",
       )}
     >
       {error ? (
-        <p className="text-red-600">{error}</p>
+        <p className="text-red-600 dark:text-red-400">{error}</p>
       ) : (
         <>
           <p className="whitespace-pre-wrap">{content}</p>

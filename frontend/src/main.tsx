@@ -11,6 +11,8 @@ if (!rootElement) {
 
 createRoot(rootElement).render(
   <StrictMode>
-    <App />
+    <div className="font-sans antialiased">
+      <App />
+    </div>
   </StrictMode>,
 );

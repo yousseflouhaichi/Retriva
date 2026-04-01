@@ -1,8 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { ChatWindow } from "@/components/ChatWindow";
+import { DocumentsPanel } from "@/components/DocumentsPanel";
+import { SystemStatusPanel } from "@/components/SystemStatusPanel";
 import { UploadZone } from "@/components/UploadZone";
+import { WorkspacePreferencesBar } from "@/components/WorkspacePreferencesBar";
 import { WorkspaceSelector } from "@/components/WorkspaceSelector";
+import { useWorkspacePreferences } from "@/hooks/useWorkspacePreferences";
 import {
   appendExtraWorkspaceId,
   mergeWorkspaceIds,
@@ -24,6 +28,18 @@ export default function App() {
   const [workspaces, setWorkspaces] = useState<string[]>(["demo"]);
   const [companyId, setCompanyId] = useState("demo");
   const [workspacesReady, setWorkspacesReady] = useState(false);
+  const [documentsRefreshToken, setDocumentsRefreshToken] = useState(0);
+
+  const { preferences, preferencesLoading, preferencesError, patchPreferences } = useWorkspacePreferences(
+    companyId,
+    apiBase,
+  );
+
+  const compactLayout = preferences.density === "compact";
+
+  const bumpDocuments = useCallback(() => {
+    setDocumentsRefreshToken((previous) => previous + 1);
+  }, []);
 
   useEffect(() => {
     if (!apiBase) {
@@ -83,14 +99,17 @@ export default function App() {
     persistLastCompanyId(id);
   }, []);
 
-  const handleAddWorkspace = useCallback((id: string) => {
-    appendExtraWorkspaceId(id);
-    setWorkspaces((prev) => {
-      const next = mergeWorkspaceIds(prev, [id]);
-      return next.length === 0 ? ["demo"] : next;
-    });
-    handleCompanyChange(id);
-  }, [handleCompanyChange]);
+  const handleAddWorkspace = useCallback(
+    (id: string) => {
+      appendExtraWorkspaceId(id);
+      setWorkspaces((previous) => {
+        const next = mergeWorkspaceIds(previous, [id]);
+        return next.length === 0 ? ["demo"] : next;
+      });
+      handleCompanyChange(id);
+    },
+    [handleCompanyChange],
+  );
 
   if (apiBase === null) {
     return (
@@ -107,30 +126,73 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <header className="border-b border-border bg-card px-4 py-4">
-        <div className="mx-auto flex max-w-4xl flex-col gap-4">
-          <h1 className="text-xl font-semibold tracking-tight">Multimodal RAG workspace</h1>
+      <header className="border-b border-border/50 bg-gradient-to-r from-card/90 via-card/70 to-muted/40 backdrop-blur-sm">
+        <div className="mx-auto flex max-w-[1600px] flex-col gap-3 px-3 py-3 sm:px-4">
+          <div className="flex flex-col gap-2 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-primary/80">RAG workspace</p>
+              <h1 className="text-lg font-semibold tracking-tight text-foreground/95">Main view</h1>
+            </div>
+            <WorkspacePreferencesBar
+              preferences={preferences}
+              disabled={preferencesLoading}
+              compact={compactLayout}
+              onPatch={(patch) => {
+                void patchPreferences(patch);
+              }}
+            />
+          </div>
+          {preferencesError && (
+            <p className="text-xs text-amber-700 dark:text-amber-400" role="status">
+              {preferencesError}
+            </p>
+          )}
           <WorkspaceSelector
             value={companyId}
             onChange={handleCompanyChange}
             workspaces={workspaces}
             onAddWorkspace={handleAddWorkspace}
+            compact={compactLayout}
           />
         </div>
       </header>
-      <main className="mx-auto flex max-w-4xl flex-col gap-6 px-4 py-6">
-        {!workspacesReady && (
-          <p className="text-center text-sm text-muted-foreground" aria-live="polite">
-            Loading workspaces…
-          </p>
-        )}
-        <div
-          className={`flex flex-col gap-6 ${workspacesReady ? "" : "pointer-events-none opacity-50"}`}
-        >
-          <UploadZone companyId={companyId} apiBaseUrl={apiBase} />
-          <ChatWindow companyId={companyId} apiBaseUrl={apiBase} />
-        </div>
-      </main>
+
+      <div className="mx-auto flex max-w-[1600px] flex-col gap-3 p-3 sm:p-4 lg:grid lg:min-h-[calc(100vh-8rem)] lg:grid-cols-[minmax(260px,300px)_1fr] lg:gap-4 lg:items-stretch">
+        <aside className="flex flex-col gap-3 lg:min-h-0">
+          <SystemStatusPanel apiBaseUrl={apiBase} compact={compactLayout} />
+          <DocumentsPanel
+            key={companyId}
+            companyId={companyId}
+            apiBaseUrl={apiBase}
+            compact={compactLayout}
+            refreshToken={documentsRefreshToken}
+          />
+        </aside>
+
+        <section className="flex min-h-0 flex-col gap-3 lg:min-h-0">
+          {!workspacesReady && (
+            <p className="text-center text-xs text-muted-foreground" aria-live="polite">
+              Loading workspaces…
+            </p>
+          )}
+          <div
+            className={`flex min-h-0 flex-1 flex-col gap-3 ${workspacesReady ? "" : "pointer-events-none opacity-50"}`}
+          >
+            <UploadZone
+              companyId={companyId}
+              apiBaseUrl={apiBase}
+              compact={compactLayout}
+              onIngestSuccess={bumpDocuments}
+            />
+            <ChatWindow
+              companyId={companyId}
+              apiBaseUrl={apiBase}
+              compact={compactLayout}
+              showStreamingIndicator={preferences.show_streaming_indicator}
+            />
+          </div>
+        </section>
+      </div>
     </div>
   );
 }

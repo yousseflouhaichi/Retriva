@@ -10,6 +10,9 @@ export type IngestPhase = "idle" | "uploading" | "queued" | "processing" | "read
 export interface UploadZoneProps {
   companyId: string;
   apiBaseUrl: string;
+  compact?: boolean;
+  /** Called once when ingestion reaches ready (e.g. refresh document index). */
+  onIngestSuccess?: () => void;
 }
 
 interface StatusPayload {
@@ -18,7 +21,7 @@ interface StatusPayload {
   chunks_indexed?: number | null;
 }
 
-export function UploadZone({ companyId, apiBaseUrl }: UploadZoneProps) {
+export function UploadZone({ companyId, apiBaseUrl, compact = false, onIngestSuccess }: UploadZoneProps) {
   const [phase, setPhase] = useState<IngestPhase>("idle");
   const [jobId, setJobId] = useState<string | null>(null);
   const [detail, setDetail] = useState<string | null>(null);
@@ -26,6 +29,7 @@ export function UploadZone({ companyId, apiBaseUrl }: UploadZoneProps) {
   const [userError, setUserError] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const readyNotifiedRef = useRef(false);
 
   const reset = () => {
     setPhase("idle");
@@ -33,6 +37,7 @@ export function UploadZone({ companyId, apiBaseUrl }: UploadZoneProps) {
     setDetail(null);
     setChunks(null);
     setUserError(null);
+    readyNotifiedRef.current = false;
   };
 
   const uploadFile = useCallback(
@@ -110,6 +115,16 @@ export function UploadZone({ companyId, apiBaseUrl }: UploadZoneProps) {
     return () => window.clearInterval(id);
   }, [apiBaseUrl, jobId, phase]);
 
+  useEffect(() => {
+    if (phase === "ready" && !readyNotifiedRef.current) {
+      readyNotifiedRef.current = true;
+      onIngestSuccess?.();
+    }
+    if (phase === "idle") {
+      readyNotifiedRef.current = false;
+    }
+  }, [phase, onIngestSuccess]);
+
   const onDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
@@ -132,17 +147,23 @@ export function UploadZone({ companyId, apiBaseUrl }: UploadZoneProps) {
               ? "Ready"
               : "Failed";
 
+  const headerClass = compact ? "flex flex-row items-center justify-between space-y-0 p-3 pb-2" : "flex flex-row items-center justify-between space-y-0 pb-2";
+  const contentClass = compact ? "space-y-2 p-3 pt-0" : "space-y-3";
+  const titleClass = compact ? "text-xs font-semibold uppercase tracking-wide text-muted-foreground" : "text-base font-medium";
+  const dropMinH = compact ? "min-h-[88px]" : "min-h-[120px]";
+  const dropPad = compact ? "px-3 py-4" : "px-4 py-6";
+
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-base font-medium">Upload documents</CardTitle>
+    <Card className="border-border/40 bg-card/80 shadow-none ring-1 ring-border/30">
+      <CardHeader className={headerClass}>
+        <CardTitle className={titleClass}>Upload documents</CardTitle>
         {phase !== "idle" && (
           <Button type="button" variant="ghost" size="sm" onClick={reset}>
             Clear
           </Button>
         )}
       </CardHeader>
-      <CardContent className="space-y-3">
+      <CardContent className={contentClass}>
         <div
           role="button"
           tabIndex={0}
@@ -163,12 +184,15 @@ export function UploadZone({ companyId, apiBaseUrl }: UploadZoneProps) {
           onDragOver={(e) => e.preventDefault()}
           onDrop={onDrop}
           className={cn(
-            "flex min-h-[120px] cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-border bg-muted/40 px-4 py-6 text-center text-sm text-muted-foreground transition-colors",
-            isDragging && "border-primary bg-muted",
+            "flex cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed border-border/60 bg-muted/35 text-center text-muted-foreground transition-colors",
+            dropMinH,
+            dropPad,
+            compact ? "text-xs" : "text-sm",
+            isDragging && "border-primary/80 bg-muted",
           )}
           onClick={() => fileInputRef.current?.click()}
         >
-          <Upload className="mb-2 h-8 w-8 opacity-60" />
+          <Upload className={cn("mb-2 opacity-60", compact ? "h-6 w-6" : "h-8 w-8")} />
           <p>{phaseLabel}</p>
           {phase === "ready" && chunks !== null && <p className="mt-1 text-xs">Indexed {chunks} chunk(s)</p>}
           {detail && <p className="mt-1 text-xs">{detail}</p>}
@@ -206,7 +230,7 @@ export function UploadZone({ companyId, apiBaseUrl }: UploadZoneProps) {
           <span
             className={cn(
               "rounded-full px-2 py-0.5",
-              phase === "ready" && "bg-green-100 font-medium text-green-900",
+              phase === "ready" && "bg-emerald-500/15 font-medium text-emerald-800 dark:text-emerald-400",
             )}
           >
             Ready
@@ -214,7 +238,7 @@ export function UploadZone({ companyId, apiBaseUrl }: UploadZoneProps) {
           <span
             className={cn(
               "rounded-full px-2 py-0.5",
-              phase === "failed" && "bg-red-100 font-medium text-red-900",
+              phase === "failed" && "bg-red-500/15 font-medium text-red-800 dark:text-red-400",
             )}
           >
             Failed

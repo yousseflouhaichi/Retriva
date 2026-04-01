@@ -3,17 +3,25 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { cn } from "@/lib/utils";
 
 export interface WorkspaceSelectorProps {
   value: string;
   onChange: (companyId: string) => void;
   workspaces: string[];
   onAddWorkspace: (companyId: string) => void;
+  compact?: boolean;
 }
 
 const ID_PATTERN = /^[a-zA-Z0-9_-]+$/;
 
-export function WorkspaceSelector({ value, onChange, workspaces, onAddWorkspace }: WorkspaceSelectorProps) {
+export function WorkspaceSelector({
+  value,
+  onChange,
+  workspaces,
+  onAddWorkspace,
+  compact = false,
+}: WorkspaceSelectorProps) {
   const [draft, setDraft] = useState("");
 
   const handleAdd = () => {
@@ -30,13 +38,16 @@ export function WorkspaceSelector({ value, onChange, workspaces, onAddWorkspace 
   };
 
   return (
-    <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
-      <div className="flex-1 space-y-1">
-        <label className="text-sm font-medium text-foreground" htmlFor="workspace-select">
+    <div className={cn("flex flex-col sm:flex-row sm:items-end", compact ? "gap-1.5" : "gap-2")}>
+      <div className={cn("flex-1", compact ? "space-y-0.5" : "space-y-1")}>
+        <label
+          className={cn("font-medium text-foreground", compact ? "text-[10px] uppercase tracking-wide text-muted-foreground" : "text-sm")}
+          htmlFor="workspace-select"
+        >
           Workspace (company id)
         </label>
         <Select value={value} onValueChange={onChange}>
-          <SelectTrigger id="workspace-select" className="w-full sm:w-64">
+          <SelectTrigger id="workspace-select" className={cn("w-full sm:w-64", compact && "h-8 text-xs")}>
             <SelectValue placeholder="Select workspace" />
           </SelectTrigger>
           <SelectContent>
@@ -48,16 +59,16 @@ export function WorkspaceSelector({ value, onChange, workspaces, onAddWorkspace 
           </SelectContent>
         </Select>
       </div>
-      <div className="flex gap-2">
+      <div className={cn("flex", compact ? "gap-1.5" : "gap-2")}>
         <Input
           type="text"
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           placeholder="new-workspace-id"
-          className="w-40"
+          className={cn("w-40", compact && "h-8 text-xs")}
           aria-label="New workspace id"
         />
-        <Button type="button" variant="outline" size="sm" onClick={handleAdd}>
+        <Button type="button" variant="outline" size="sm" className={compact ? "h-8" : undefined} onClick={handleAdd}>
           Add
         </Button>
       </div>
