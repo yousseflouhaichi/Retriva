@@ -35,5 +35,7 @@ uv run arq backend.workers.ingestion_worker.WorkerSettings
 - Poll `GET /ingest/status/{job_id}` until `ready` (response includes `chunks_indexed` when using the JSON status format)
 
 ### Try streaming query
-- `POST /query/stream` with JSON `{ "company_id": "demo", "question": "hello" }`
-- Response is SSE events (`meta`, `token`, `done`)
+- Set `OPENAI_API_KEY` and **`COHERE_API_KEY`** in `.env` (transform, retrieval rerank, and answer generation).
+- Ingest at least one document for `company_id` first so Qdrant and the Redis BM25 corpus are populated.
+- `POST /query/stream` with JSON `{ "company_id": "demo", "question": "your question" }`
+- SSE events: `sources` (JSON array of previews), then `token` chunks, then `done`. On failure, `error` then `done`.
