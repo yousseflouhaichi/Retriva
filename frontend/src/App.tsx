@@ -1,8 +1,15 @@
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { ChatWindow } from "@/components/ChatWindow";
 import { UploadZone } from "@/components/UploadZone";
 import { WorkspaceSelector } from "@/components/WorkspaceSelector";
+import {
+  appendExtraWorkspaceId,
+  mergeWorkspaceIds,
+  persistLastCompanyId,
+  readExtraWorkspaceIds,
+  readLastCompanyId,
+} from "@/lib/workspacesStorage";
 import { getApiBaseUrl } from "@/lib/utils";
 
 export default function App() {
@@ -16,6 +23,74 @@ export default function App() {
 
   const [workspaces, setWorkspaces] = useState<string[]>(["demo"]);
   const [companyId, setCompanyId] = useState("demo");
+  const [workspacesReady, setWorkspacesReady] = useState(false);
+
+  useEffect(() => {
+    if (!apiBase) {
+      return;
+    }
+    let cancelled = false;
+    const extras = readExtraWorkspaceIds();
+
+    void (async () => {
+      let fromApi: string[] = [];
+      try {
+        const response = await fetch(`${apiBase}/workspaces`);
+        if (response.ok) {
+          const payload = (await response.json()) as { workspaces?: unknown };
+          const raw = payload.workspaces;
+          if (Array.isArray(raw)) {
+            fromApi = raw.filter((item): item is string => typeof item === "string" && item.length > 0);
+          }
+        }
+      } catch {
+        /* offline or CORS; fall back to extras only */
+      }
+
+      if (cancelled) {
+        return;
+      }
+
+      let merged = mergeWorkspaceIds(fromApi, extras);
+      if (merged.length === 0) {
+        merged = ["demo"];
+      }
+      setWorkspaces(merged);
+
+      const last = readLastCompanyId();
+      if (last && merged.includes(last)) {
+        setCompanyId(last);
+      } else if (merged.includes("demo")) {
+        setCompanyId("demo");
+        persistLastCompanyId("demo");
+      } else {
+        const first = merged[0];
+        if (first) {
+          setCompanyId(first);
+          persistLastCompanyId(first);
+        }
+      }
+      setWorkspacesReady(true);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [apiBase]);
+
+  const handleCompanyChange = useCallback((id: string) => {
+    setCompanyId(id);
+    persistLastCompanyId(id);
+  }, []);
+
+  const handleAddWorkspace = useCallback((id: string) => {
+    appendExtraWorkspaceId(id);
+    setWorkspaces((prev) => {
+      const next = mergeWorkspaceIds(prev, [id]);
+      return next.length === 0 ? ["demo"] : next;
+    });
+    handleCompanyChange(id);
+  }, [handleCompanyChange]);
 
   if (apiBase === null) {
     return (
@@ -37,15 +112,24 @@ export default function App() {
           <h1 className="text-xl font-semibold tracking-tight">Multimodal RAG workspace</h1>
           <WorkspaceSelector
             value={companyId}
-            onChange={setCompanyId}
+            onChange={handleCompanyChange}
             workspaces={workspaces}
-            onAddWorkspace={(id) => setWorkspaces((prev) => (prev.includes(id) ? prev : [...prev, id]))}
+            onAddWorkspace={handleAddWorkspace}
           />
         </div>
       </header>
       <main className="mx-auto flex max-w-4xl flex-col gap-6 px-4 py-6">
-        <UploadZone companyId={companyId} apiBaseUrl={apiBase} />
-        <ChatWindow companyId={companyId} apiBaseUrl={apiBase} />
+        {!workspacesReady && (
+          <p className="text-center text-sm text-muted-foreground" aria-live="polite">
+            Loading workspaces…
+          </p>
+        )}
+        <div
+          className={`flex flex-col gap-6 ${workspacesReady ? "" : "pointer-events-none opacity-50"}`}
+        >
+          <UploadZone companyId={companyId} apiBaseUrl={apiBase} />
+          <ChatWindow companyId={companyId} apiBaseUrl={apiBase} />
+        </div>
       </main>
     </div>
   );

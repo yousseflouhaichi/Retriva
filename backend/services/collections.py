@@ -13,6 +13,8 @@ from qdrant_client.models import Distance, VectorParams
 
 from backend.core.config import Settings
 
+COMPANY_COLLECTION_PREFIX = "company_"
+
 
 def company_safe_id(company_id: str) -> str:
     """
@@ -49,7 +51,33 @@ def company_collection_name(company_id: str) -> str:
         ValueError: If company_id cannot be normalized to a non-empty safe id.
     """
 
-    return f"company_{company_safe_id(company_id)}"
+    return f"{COMPANY_COLLECTION_PREFIX}{company_safe_id(company_id)}"
+
+
+async def list_tenant_workspace_ids(client: AsyncQdrantClient) -> list[str]:
+    """
+    List company_id suffixes for every Qdrant collection owned by the app prefix.
+
+    Args:
+        client: Async Qdrant HTTP client.
+
+    Returns:
+        Sorted unique workspace ids (safe suffixes after company_).
+
+    Raises:
+        Exception: Propagates Qdrant client errors for the router to map to HTTP.
+    """
+
+    response = await client.get_collections()
+    seen: set[str] = set()
+    for coll in response.collections:
+        name = str(coll.name)
+        if not name.startswith(COMPANY_COLLECTION_PREFIX):
+            continue
+        suffix = name[len(COMPANY_COLLECTION_PREFIX) :].strip()
+        if suffix:
+            seen.add(suffix)
+    return sorted(seen)
 
 
 async def ensure_company_collection(
