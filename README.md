@@ -39,3 +39,17 @@ uv run arq backend.workers.ingestion_worker.WorkerSettings
 - Ingest at least one document for `company_id` first so Qdrant and the Redis BM25 corpus are populated.
 - `POST /query/stream` with JSON `{ "company_id": "demo", "question": "your question" }`
 - SSE events: `sources` (JSON array of previews), then `token` chunks, then `done`. On failure, `error` then `done`.
+
+### Frontend (Vite + React + Tailwind)
+
+- Copy `frontend/.env.example` to `frontend/.env` and set **`VITE_API_URL`** to your API base (no trailing slash), e.g. `http://127.0.0.1:8080`.
+- Install and run:
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+- Open the printed local URL (default port **5173**). CORS is enabled for that origin in `backend/main.py`.
+- Use **Workspace** for `company_id`, **Upload** for ingestion (polls status every 2s), **Chat** for streaming queries via **`useSSE`**.
