@@ -71,14 +71,17 @@ async def retrieve_and_rerank(
     ranked_lists: list[list[str]] = [bm25_ids]
     qdrant = AsyncQdrantClient(url=settings.qdrant_url)
     try:
+        if not await qdrant.collection_exists(collection_name=collection):
+            return []
+
         for vector in vectors:
-            response = await qdrant.search(
+            response = await qdrant.query_points(
                 collection_name=collection,
-                query_vector=vector,
+                query=vector,
                 limit=settings.dense_top_k_per_subquery,
                 with_payload=True,
             )
-            ranked_lists.append([str(hit.id) for hit in response])
+            ranked_lists.append([str(hit.id) for hit in response.points])
 
         fused = reciprocal_rank_fusion(ranked_lists, settings.rrf_k)
         pool = min(settings.rerank_candidate_pool, len(fused))
