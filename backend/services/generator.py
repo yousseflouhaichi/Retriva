@@ -69,8 +69,10 @@ async def stream_answer_tokens(
             temperature=0.2,
         )
         async for chunk in stream:
-            choice = chunk.choices[0]
-            delta = choice.delta.content
+            choices = chunk.choices
+            if not choices:
+                continue
+            delta = choices[0].delta.content
             if delta:
                 yield delta
     finally:

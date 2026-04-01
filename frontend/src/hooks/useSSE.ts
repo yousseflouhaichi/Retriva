@@ -14,12 +14,20 @@ export interface QueryStreamHandlers {
   onDone?: () => void;
 }
 
+/**
+ * sse-starlette (and many proxies) frame SSE lines with CRLF; splitting on `\n\n` only
+ * never sees event boundaries, so tokens never parse in the browser.
+ */
+function normalizeSseNewlines(buffer: string): string {
+  return buffer.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+}
+
 function parseSseBlocks(buffer: string): {
   events: Array<{ eventName: string; data: string }>;
   rest: string;
 } {
   const events: Array<{ eventName: string; data: string }> = [];
-  const parts = buffer.split("\n\n");
+  const parts = normalizeSseNewlines(buffer).split("\n\n");
   const rest = parts.pop() ?? "";
   for (const block of parts) {
     if (!block.trim()) {
@@ -31,7 +39,14 @@ function parseSseBlocks(buffer: string): {
       if (line.startsWith("event:")) {
         eventName = line.slice(6).trim();
       } else if (line.startsWith("data:")) {
-        dataLines.push(line.slice(5).trimStart());
+        // SSE allows one space after the colon; strip only that, not payload whitespace.
+        // OpenAI deltas often start with a leading space; trimStart() removed those and
+        // glued words together.
+        let payload = line.slice(5);
+        if (payload.startsWith(" ")) {
+          payload = payload.slice(1);
+        }
+        dataLines.push(payload);
       }
     }
     events.push({ eventName, data: dataLines.join("\n") });
