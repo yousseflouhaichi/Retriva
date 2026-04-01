@@ -40,6 +40,8 @@ class Settings(BaseSettings):
     status_dependency_timeout_seconds: float = Field(default=3.0, alias="STATUS_DEPENDENCY_TIMEOUT_SECONDS")
 
     qdrant_upsert_batch_size: int = Field(default=64, alias="QDRANT_UPSERT_BATCH_SIZE")
+    document_list_scroll_batch_size: int = Field(default=256, alias="DOCUMENT_LIST_SCROLL_BATCH_SIZE")
+    document_index_max_points_scanned: int = Field(default=50_000, alias="DOCUMENT_INDEX_MAX_POINTS_SCANNED")
 
     bm25_max_corpus_documents: int = Field(default=50_000, alias="BM25_MAX_CORPUS_DOCUMENTS")
 
@@ -93,6 +95,10 @@ class Settings(BaseSettings):
             raise ValueError("QUERY_ANSWER_MAX_TOKENS must be at least 1")
         if self.status_dependency_timeout_seconds <= 0:
             raise ValueError("STATUS_DEPENDENCY_TIMEOUT_SECONDS must be positive")
+        if self.document_list_scroll_batch_size < 1:
+            raise ValueError("DOCUMENT_LIST_SCROLL_BATCH_SIZE must be at least 1")
+        if self.document_index_max_points_scanned < 1:
+            raise ValueError("DOCUMENT_INDEX_MAX_POINTS_SCANNED must be at least 1")
         return self
 
 

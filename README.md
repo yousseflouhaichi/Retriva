@@ -29,6 +29,9 @@ Workspaces (for the UI dropdown): Qdrant collections named `company_*` are liste
 System status (dependency checks and non-secret model metadata for dashboards):
 - `GET /status`
 
+Document index (per workspace, from Qdrant chunk payloads; may truncate on very large corpora):
+- `GET /documents?company_id=demo`
+
 ### Run the ARQ worker (separate terminal)
 
 ```bash

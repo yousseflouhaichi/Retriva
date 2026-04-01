@@ -72,6 +72,28 @@ class SystemStatusResponse(BaseModel):
     app: PublicAppInfo
 
 
+class DocumentIndexItem(BaseModel):
+    """
+    One logical document aggregated from chunk payloads in Qdrant.
+    """
+
+    document_name: str
+    chunk_count: int = Field(ge=0)
+
+
+class DocumentIndexResponse(BaseModel):
+    """
+    Per-tenant document library derived from vector payloads.
+    """
+
+    company_id: str
+    documents: list[DocumentIndexItem]
+    truncated: bool = Field(
+        default=False,
+        description="True when the scan stopped early at the configured point cap",
+    )
+
+
 class SSEEvent(BaseModel):
     event: str
     data: str
