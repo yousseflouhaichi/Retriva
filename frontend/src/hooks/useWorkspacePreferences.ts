@@ -1,12 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
 
 import type { WorkspacePreferences, WorkspacePreferencesPatch } from "@/lib/apiTypes";
-
-const DEFAULT_PREFERENCES: WorkspacePreferences = {
-  theme: "system",
-  density: "comfortable",
-  show_streaming_indicator: true,
-};
+import {
+  getDefaultWorkspacePreferences,
+  normalizeWorkspacePreferencesBody,
+} from "@/lib/normalizePreferences";
 
 /**
  * Loads and patches per-workspace UI preferences from the API; syncs theme class on document root.
@@ -17,7 +15,7 @@ export function useWorkspacePreferences(companyId: string, apiBaseUrl: string | 
   preferencesError: string | null;
   patchPreferences: (patch: WorkspacePreferencesPatch) => Promise<void>;
 } {
-  const [preferences, setPreferences] = useState<WorkspacePreferences>(DEFAULT_PREFERENCES);
+  const [preferences, setPreferences] = useState<WorkspacePreferences>(getDefaultWorkspacePreferences);
   const [preferencesLoading, setPreferencesLoading] = useState(false);
   const [preferencesError, setPreferencesError] = useState<string | null>(null);
 
@@ -35,21 +33,14 @@ export function useWorkspacePreferences(companyId: string, apiBaseUrl: string | 
         if (!response.ok) {
           throw new Error(`Could not load preferences (${response.status})`);
         }
-        const body = (await response.json()) as WorkspacePreferences;
+        const raw = (await response.json()) as unknown;
         if (!cancelled) {
-          setPreferences({
-            theme: body.theme ?? DEFAULT_PREFERENCES.theme,
-            density: body.density ?? DEFAULT_PREFERENCES.density,
-            show_streaming_indicator:
-              typeof body.show_streaming_indicator === "boolean"
-                ? body.show_streaming_indicator
-                : DEFAULT_PREFERENCES.show_streaming_indicator,
-          });
+          setPreferences(normalizeWorkspacePreferencesBody(raw));
         }
       } catch {
         if (!cancelled) {
           setPreferencesError("Preferences unavailable; using defaults.");
-          setPreferences(DEFAULT_PREFERENCES);
+          setPreferences(getDefaultWorkspacePreferences());
         }
       } finally {
         if (!cancelled) {
@@ -110,15 +101,8 @@ export function useWorkspacePreferences(companyId: string, apiBaseUrl: string | 
         setPreferencesError(message);
         return;
       }
-      const body = (await response.json()) as WorkspacePreferences;
-      setPreferences({
-        theme: body.theme ?? DEFAULT_PREFERENCES.theme,
-        density: body.density ?? DEFAULT_PREFERENCES.density,
-        show_streaming_indicator:
-          typeof body.show_streaming_indicator === "boolean"
-            ? body.show_streaming_indicator
-            : DEFAULT_PREFERENCES.show_streaming_indicator,
-      });
+      const raw = (await response.json()) as unknown;
+      setPreferences(normalizeWorkspacePreferencesBody(raw));
     },
     [apiBaseUrl, companyId],
   );

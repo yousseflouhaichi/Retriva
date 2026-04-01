@@ -3,10 +3,75 @@ import { Activity, Database, Server } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import type { SystemStatusResponse } from "@/lib/apiTypes";
+import type { DependencyCheckResult, PublicAppInfo, SystemStatusResponse } from "@/lib/apiTypes";
 import { cn } from "@/lib/utils";
 
 const POLL_MS = 20_000;
+
+function isDependencyList(raw: unknown): raw is DependencyCheckResult[] {
+  if (!Array.isArray(raw)) {
+    return false;
+  }
+  return raw.every(
+    (item) =>
+      item !== null &&
+      typeof item === "object" &&
+      typeof (item as DependencyCheckResult).name === "string" &&
+      typeof (item as DependencyCheckResult).ok === "boolean",
+  );
+}
+
+function parseSystemStatus(raw: unknown): SystemStatusResponse | null {
+  if (raw === null || typeof raw !== "object") {
+    return null;
+  }
+  const body = raw as Record<string, unknown>;
+  if (!isDependencyList(body.dependencies)) {
+    return null;
+  }
+  const app = body.app;
+  if (app === null || typeof app !== "object") {
+    return null;
+  }
+  const appRec = app as Record<string, unknown>;
+  if (
+    typeof appRec.environment !== "string" ||
+    typeof appRec.embeddings_model !== "string" ||
+    typeof appRec.query_answer_model !== "string" ||
+    typeof appRec.query_transform_model !== "string"
+  ) {
+    return null;
+  }
+  const worker = body.ingestion_worker;
+  if (worker === null || typeof worker !== "object") {
+    return null;
+  }
+  const w = worker as Record<string, unknown>;
+  if (
+    typeof w.queue_name !== "string" ||
+    typeof w.jobs_queued !== "number" ||
+    typeof w.worker_health_ok !== "boolean"
+  ) {
+    return null;
+  }
+  const publicApp: PublicAppInfo = {
+    environment: appRec.environment,
+    embeddings_model: appRec.embeddings_model,
+    query_answer_model: appRec.query_answer_model,
+    query_transform_model: appRec.query_transform_model,
+  };
+  return {
+    status: "ok",
+    dependencies: body.dependencies,
+    app: publicApp,
+    ingestion_worker: {
+      queue_name: w.queue_name,
+      jobs_queued: w.jobs_queued,
+      worker_health_ok: w.worker_health_ok,
+      health_detail: typeof w.health_detail === "string" ? w.health_detail : null,
+    },
+  };
+}
 
 export interface SystemStatusPanelProps {
   apiBaseUrl: string;
@@ -29,8 +94,14 @@ export function SystemStatusPanel({ apiBaseUrl, compact = false }: SystemStatusP
         setData(null);
         return;
       }
-      const body = (await response.json()) as SystemStatusResponse;
-      setData(body);
+      const raw = (await response.json()) as unknown;
+      const parsed = parseSystemStatus(raw);
+      if (parsed === null) {
+        setError("Status response was incomplete or invalid.");
+        setData(null);
+        return;
+      }
+      setData(parsed);
       setError(null);
     } catch {
       setError("Could not reach the API.");

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,6 +24,17 @@ export function WorkspaceSelector({
 }: WorkspaceSelectorProps) {
   const [draft, setDraft] = useState("");
 
+  const resolvedValue = useMemo(() => {
+    const list = workspaces.length > 0 ? workspaces : ["demo"];
+    return list.includes(value) ? value : list[0];
+  }, [workspaces, value]);
+
+  useEffect(() => {
+    if (value !== resolvedValue) {
+      onChange(resolvedValue);
+    }
+  }, [value, resolvedValue, onChange]);
+
   const handleAdd = () => {
     const trimmed = draft.trim();
     if (!trimmed) {
@@ -46,7 +57,7 @@ export function WorkspaceSelector({
         >
           Workspace (company id)
         </label>
-        <Select value={value} onValueChange={onChange}>
+        <Select value={resolvedValue} onValueChange={onChange}>
           <SelectTrigger id="workspace-select" className={cn("w-full sm:w-64", compact && "h-8 text-xs")}>
             <SelectValue placeholder="Select workspace" />
           </SelectTrigger>

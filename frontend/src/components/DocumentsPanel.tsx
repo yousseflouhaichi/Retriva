@@ -16,6 +16,51 @@ export interface DocumentsPanelProps {
   refreshToken: number;
 }
 
+function parseDocumentIndex(raw: unknown): DocumentIndexResponse | null {
+  if (raw === null || typeof raw !== "object") {
+    return null;
+  }
+  const body = raw as Record<string, unknown>;
+  if (typeof body.company_id !== "string" || !Array.isArray(body.documents)) {
+    return null;
+  }
+  if (typeof body.total_documents !== "number" || typeof body.limit !== "number" || typeof body.offset !== "number") {
+    return null;
+  }
+  const docs = body.documents as unknown[];
+  for (const row of docs) {
+    if (row === null || typeof row !== "object") {
+      return null;
+    }
+    const r = row as Record<string, unknown>;
+    if (typeof r.document_name !== "string" || typeof r.chunk_count !== "number") {
+      return null;
+    }
+    if (
+      r.last_indexed_at !== null &&
+      r.last_indexed_at !== undefined &&
+      typeof r.last_indexed_at !== "string"
+    ) {
+      return null;
+    }
+  }
+  return {
+    company_id: body.company_id,
+    documents: docs.map((row) => {
+      const r = row as Record<string, unknown>;
+      return {
+        document_name: r.document_name as string,
+        chunk_count: r.chunk_count as number,
+        last_indexed_at: typeof r.last_indexed_at === "string" ? r.last_indexed_at : null,
+      };
+    }),
+    truncated: typeof body.truncated === "boolean" ? body.truncated : false,
+    total_documents: body.total_documents,
+    limit: body.limit,
+    offset: body.offset,
+  };
+}
+
 function formatIndexedAt(iso: string | null): string {
   if (!iso) {
     return "—";
@@ -66,8 +111,14 @@ export function DocumentsPanel({ companyId, apiBaseUrl, compact = false, refresh
         setData(null);
         return;
       }
-      const body = (await response.json()) as DocumentIndexResponse;
-      setData(body);
+      const raw = (await response.json()) as unknown;
+      const parsed = parseDocumentIndex(raw);
+      if (parsed === null) {
+        setError("Documents response was incomplete or invalid.");
+        setData(null);
+        return;
+      }
+      setData(parsed);
     } catch {
       setError("Could not load documents.");
       setData(null);
