@@ -32,6 +32,10 @@ System status (dependency checks and non-secret model metadata for dashboards):
 Document index (per workspace, from Qdrant chunk payloads; may truncate on very large corpora):
 - `GET /documents?company_id=demo`
 
+Workspace UI preferences (per `company_id`, stored in Redis; no auth yet):
+- `GET /workspace/preferences?company_id=demo`
+- `PATCH /workspace/preferences?company_id=demo` with JSON body (partial fields: `theme`, `density`, `show_streaming_indicator`)
+
 ### Run the ARQ worker (separate terminal)
 
 ```bash

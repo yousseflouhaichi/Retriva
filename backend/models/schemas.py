@@ -94,6 +94,26 @@ class DocumentIndexResponse(BaseModel):
     )
 
 
+class WorkspacePreferences(BaseModel):
+    """
+    Client-controlled UI preferences for a workspace (stored server-side per company_id).
+    """
+
+    theme: Literal["light", "dark", "system"] = "system"
+    density: Literal["comfortable", "compact"] = "comfortable"
+    show_streaming_indicator: bool = True
+
+
+class WorkspacePreferencesPatch(BaseModel):
+    """
+    Partial update for workspace preferences; omitted fields stay unchanged.
+    """
+
+    theme: Literal["light", "dark", "system"] | None = None
+    density: Literal["comfortable", "compact"] | None = None
+    show_streaming_indicator: bool | None = None
+
+
 class SSEEvent(BaseModel):
     event: str
     data: str
