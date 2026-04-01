@@ -33,6 +33,45 @@ class QueryRequest(BaseModel):
     question: str = Field(min_length=1)
 
 
+class WorkspacesListResponse(BaseModel):
+    """
+    Tenant workspace ids derived from Qdrant collection names (company_*).
+    """
+
+    workspaces: list[str] = Field(description="Sorted unique workspace ids with indexed data in Qdrant")
+
+
+class DependencyCheckResult(BaseModel):
+    """
+    One infrastructure dependency probe result for status dashboards.
+    """
+
+    name: str = Field(description="Dependency id, e.g. qdrant, redis, unstructured")
+    ok: bool
+    detail: str | None = Field(default=None, description="Safe error category when ok is false")
+
+
+class PublicAppInfo(BaseModel):
+    """
+    Non-secret model names and environment for a settings or about panel.
+    """
+
+    environment: str
+    embeddings_model: str
+    query_answer_model: str
+    query_transform_model: str
+
+
+class SystemStatusResponse(BaseModel):
+    """
+    API process is up; dependencies may individually fail.
+    """
+
+    status: Literal["ok"] = "ok"
+    dependencies: list[DependencyCheckResult]
+    app: PublicAppInfo
+
+
 class SSEEvent(BaseModel):
     event: str
     data: str

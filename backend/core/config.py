@@ -37,6 +37,7 @@ class Settings(BaseSettings):
     tiktoken_encoding: str = Field(default="cl100k_base", alias="TIKTOKEN_ENCODING")
 
     unstructured_timeout_seconds: float = Field(default=120.0, alias="UNSTRUCTURED_TIMEOUT_SECONDS")
+    status_dependency_timeout_seconds: float = Field(default=3.0, alias="STATUS_DEPENDENCY_TIMEOUT_SECONDS")
 
     qdrant_upsert_batch_size: int = Field(default=64, alias="QDRANT_UPSERT_BATCH_SIZE")
 
@@ -90,6 +91,8 @@ class Settings(BaseSettings):
             raise ValueError("RERANK_TOP_N must not exceed RERANK_CANDIDATE_POOL")
         if self.query_answer_max_tokens < 1:
             raise ValueError("QUERY_ANSWER_MAX_TOKENS must be at least 1")
+        if self.status_dependency_timeout_seconds <= 0:
+            raise ValueError("STATUS_DEPENDENCY_TIMEOUT_SECONDS must be positive")
         return self
 
 

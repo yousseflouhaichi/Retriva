@@ -23,6 +23,12 @@ uv run uvicorn backend.main:app --reload --port 8080
 Health check:
 - `GET /health`
 
+Workspaces (for the UI dropdown): Qdrant collections named `company_*` are listed by
+- `GET /workspaces` (returns JSON `{"workspaces": ["id", ...]}` sorted; id is the suffix after `company_`)
+
+System status (dependency checks and non-secret model metadata for dashboards):
+- `GET /status`
+
 ### Run the ARQ worker (separate terminal)
 
 ```bash
