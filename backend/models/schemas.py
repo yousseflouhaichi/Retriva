@@ -62,6 +62,20 @@ class PublicAppInfo(BaseModel):
     query_transform_model: str
 
 
+class IngestionWorkerSnapshot(BaseModel):
+    """
+    ARQ ingestion queue depth and worker heartbeat visible in Redis.
+    """
+
+    queue_name: str = Field(description="Redis sorted-set key holding pending jobs")
+    jobs_queued: int = Field(ge=0, description="Approximate count of jobs waiting in the queue")
+    worker_health_ok: bool = Field(description="True when the worker health-check key is present")
+    health_detail: str | None = Field(
+        default=None,
+        description="Truncated worker self-report when healthy, or a safe error hint when probe fails",
+    )
+
+
 class SystemStatusResponse(BaseModel):
     """
     API process is up; dependencies may individually fail.
@@ -70,6 +84,7 @@ class SystemStatusResponse(BaseModel):
     status: Literal["ok"] = "ok"
     dependencies: list[DependencyCheckResult]
     app: PublicAppInfo
+    ingestion_worker: IngestionWorkerSnapshot
 
 
 class DocumentIndexItem(BaseModel):

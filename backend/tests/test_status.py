@@ -10,7 +10,12 @@ import pytest
 from httpx import AsyncClient
 
 from backend.core.config import Settings
-from backend.models.schemas import DependencyCheckResult, PublicAppInfo, SystemStatusResponse
+from backend.models.schemas import (
+    DependencyCheckResult,
+    IngestionWorkerSnapshot,
+    PublicAppInfo,
+    SystemStatusResponse,
+)
 from backend.services import system_status as system_status_module
 
 
@@ -54,6 +59,18 @@ async def test_build_system_status_merges_probe_results() -> None:
             "_check_unstructured",
             AsyncMock(return_value=DependencyCheckResult(name="unstructured", ok=True)),
         ),
+        patch.object(
+            system_status_module,
+            "_ingestion_worker_snapshot",
+            AsyncMock(
+                return_value=IngestionWorkerSnapshot(
+                    queue_name="arq:queue",
+                    jobs_queued=2,
+                    worker_health_ok=True,
+                    health_detail="ok",
+                ),
+            ),
+        ),
     ):
         result = await system_status_module.build_system_status(settings)
 
@@ -63,6 +80,8 @@ async def test_build_system_status_merges_probe_results() -> None:
     assert result.dependencies[1].detail == "timeout"
     assert result.app.environment == "test"
     assert result.app.embeddings_model == "text-embedding-test"
+    assert result.ingestion_worker.jobs_queued == 2
+    assert result.ingestion_worker.worker_health_ok is True
 
 
 @pytest.mark.asyncio
@@ -83,6 +102,12 @@ async def test_status_http_endpoint(async_client: AsyncClient) -> None:
             query_answer_model="a",
             query_transform_model="t",
         ),
+        ingestion_worker=IngestionWorkerSnapshot(
+            queue_name="arq:queue",
+            jobs_queued=0,
+            worker_health_ok=False,
+            health_detail=None,
+        ),
     )
     with patch(
         "backend.routers.status.build_system_status",
@@ -95,3 +120,24 @@ async def test_status_http_endpoint(async_client: AsyncClient) -> None:
     assert body["status"] == "ok"
     assert len(body["dependencies"]) == 3
     assert body["app"]["query_answer_model"] == "a"
+    assert body["ingestion_worker"]["queue_name"] == "arq:queue"
+
+
+@pytest.mark.asyncio
+async def test_ingestion_worker_snapshot_reads_queue_and_health() -> None:
+    """
+    Worker snapshot uses zcard and health key from Redis.
+    """
+
+    settings = _minimal_settings()
+    mock_redis = AsyncMock()
+    mock_redis.zcard = AsyncMock(return_value=3)
+    mock_redis.get = AsyncMock(return_value='{"jobs":1}')
+    mock_redis.aclose = AsyncMock()
+
+    with patch.object(system_status_module.redis_lib, "from_url", return_value=mock_redis):
+        snap = await system_status_module._ingestion_worker_snapshot(settings)
+
+    assert snap.jobs_queued == 3
+    assert snap.worker_health_ok is True
+    assert snap.health_detail == '{"jobs":1}'

@@ -11,8 +11,15 @@ import httpx
 import redis.asyncio as redis_lib
 from qdrant_client import AsyncQdrantClient
 
+from arq.constants import default_queue_name, health_check_key_suffix
+
 from backend.core.config import Settings
-from backend.models.schemas import DependencyCheckResult, PublicAppInfo, SystemStatusResponse
+from backend.models.schemas import (
+    DependencyCheckResult,
+    IngestionWorkerSnapshot,
+    PublicAppInfo,
+    SystemStatusResponse,
+)
 
 
 def _safe_error_detail(exc: BaseException) -> str:
@@ -57,6 +64,39 @@ async def _check_redis(url: str) -> DependencyCheckResult:
         await client.aclose()
 
 
+async def _ingestion_worker_snapshot(settings: Settings) -> IngestionWorkerSnapshot:
+    """
+    Read ARQ queue depth and worker heartbeat key from Redis.
+    """
+
+    queue_name = default_queue_name
+    health_key = queue_name + health_check_key_suffix
+    client = redis_lib.from_url(settings.redis_url, decode_responses=True)
+    try:
+        queued = await client.zcard(queue_name)
+        raw = await client.get(health_key)
+        jobs_queued = max(0, int(queued))
+        healthy = raw is not None
+        detail: str | None = None
+        if healthy and isinstance(raw, str):
+            detail = raw[:500] if raw else None
+        return IngestionWorkerSnapshot(
+            queue_name=queue_name,
+            jobs_queued=jobs_queued,
+            worker_health_ok=healthy,
+            health_detail=detail,
+        )
+    except Exception as exc:
+        return IngestionWorkerSnapshot(
+            queue_name=queue_name,
+            jobs_queued=0,
+            worker_health_ok=False,
+            health_detail=_safe_error_detail(exc),
+        )
+    finally:
+        await client.aclose()
+
+
 async def _check_unstructured(base_url: str, timeout_seconds: float) -> DependencyCheckResult:
     """
     Verify Unstructured API base URL responds (any 2xx or 404 counts as reachable service).
@@ -84,10 +124,12 @@ async def build_system_status(settings: Settings) -> SystemStatusResponse:
     unstructured_task = asyncio.create_task(
         _check_unstructured(settings.unstructured_api_url, timeout),
     )
-    qdrant_result, redis_result, unstructured_result = await asyncio.gather(
+    worker_task = asyncio.create_task(_ingestion_worker_snapshot(settings))
+    qdrant_result, redis_result, unstructured_result, worker_snap = await asyncio.gather(
         qdrant_task,
         redis_task,
         unstructured_task,
+        worker_task,
     )
 
     app_info = PublicAppInfo(
@@ -100,4 +142,5 @@ async def build_system_status(settings: Settings) -> SystemStatusResponse:
     return SystemStatusResponse(
         dependencies=[qdrant_result, redis_result, unstructured_result],
         app=app_info,
+        ingestion_worker=worker_snap,
     )

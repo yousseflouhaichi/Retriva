@@ -26,8 +26,8 @@ Health check:
 Workspaces (for the UI dropdown): Qdrant collections named `company_*` are listed by
 - `GET /workspaces` (returns JSON `{"workspaces": ["id", ...]}` sorted; id is the suffix after `company_`)
 
-System status (dependency checks and non-secret model metadata for dashboards):
-- `GET /status`
+System status (dependency checks, non-secret model metadata, and ARQ ingestion queue snapshot):
+- `GET /status` (includes `ingestion_worker`: queue depth and worker heartbeat from Redis)
 
 Document index (per workspace, from Qdrant chunk payloads; may truncate on very large corpora):
 - `GET /documents?company_id=demo&limit=100&offset=0` (each row includes `chunk_count` and optional `last_indexed_at` for chunks ingested after this release)
