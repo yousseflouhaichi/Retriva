@@ -14,6 +14,27 @@ from qdrant_client.models import Distance, VectorParams
 from backend.core.config import Settings
 
 
+def company_safe_id(company_id: str) -> str:
+    """
+    Normalize company_id for storage keys and collection suffixes.
+
+    Args:
+        company_id: Raw tenant identifier from the API.
+
+    Returns:
+        str: Alphanumeric, hyphen, and underscore only.
+
+    Raises:
+        ValueError: If company_id cannot be normalized to a non-empty safe id.
+    """
+
+    stripped = company_id.strip()
+    safe = re.sub(r"[^a-zA-Z0-9_-]+", "_", stripped).strip("_")
+    if not safe:
+        raise ValueError("company_id must contain at least one letter, digit, hyphen, or underscore")
+    return safe
+
+
 def company_collection_name(company_id: str) -> str:
     """
     Build the Qdrant collection name for a company.
@@ -28,11 +49,7 @@ def company_collection_name(company_id: str) -> str:
         ValueError: If company_id cannot be normalized to a non-empty safe id.
     """
 
-    stripped = company_id.strip()
-    safe = re.sub(r"[^a-zA-Z0-9_-]+", "_", stripped).strip("_")
-    if not safe:
-        raise ValueError("company_id must contain at least one letter, digit, hyphen, or underscore")
-    return f"company_{safe}"
+    return f"company_{company_safe_id(company_id)}"
 
 
 async def ensure_company_collection(

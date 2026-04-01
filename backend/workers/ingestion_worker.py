@@ -49,6 +49,7 @@ async def ingest_document(
             job_id=job_id,
             file_path=path,
             original_filename=original_filename,
+            redis_client=redis,
         )
         await redis.set(
             _job_key(job_id),

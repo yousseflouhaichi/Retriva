@@ -10,12 +10,14 @@ import uuid
 from pathlib import Path
 from typing import Any
 
+import redis.asyncio as redis
 from qdrant_client import AsyncQdrantClient
 from qdrant_client.models import PointStruct
 
 from backend.core.config import Settings
+from backend.services.bm25_index import append_bm25_documents
 from backend.services.chunker import chunks_from_elements
-from backend.services.collections import ensure_company_collection
+from backend.services.collections import company_safe_id, ensure_company_collection
 from backend.services.embedder import embed_texts
 from backend.services.parser import parse_document_to_elements
 
@@ -26,6 +28,7 @@ async def run_document_ingestion(
     job_id: str,
     file_path: Path,
     original_filename: str,
+    redis_client: redis.Redis | None = None,
 ) -> tuple[int, str]:
     """
     Parse a file, embed chunks, and persist vectors to the tenant collection.
@@ -74,6 +77,15 @@ async def run_document_ingestion(
         for start in range(0, len(points), batch_size):
             batch_points = points[start : start + batch_size]
             await client.upsert(collection_name=collection, points=batch_points, wait=True)
+
+        if redis_client is not None and points:
+            safe = company_safe_id(company_id)
+            pairs = [
+                (str(point.id), str(point.payload.get("text", "")))
+                for point in points
+                if point.payload.get("text")
+            ]
+            await append_bm25_documents(redis_client, safe, pairs)
 
         return len(points), collection
     finally:

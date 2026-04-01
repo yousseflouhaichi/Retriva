@@ -40,6 +40,22 @@ class Settings(BaseSettings):
 
     qdrant_upsert_batch_size: int = Field(default=64, alias="QDRANT_UPSERT_BATCH_SIZE")
 
+    bm25_max_corpus_documents: int = Field(default=50_000, alias="BM25_MAX_CORPUS_DOCUMENTS")
+
+    query_transform_model: str = Field(default="gpt-4o-mini", alias="QUERY_TRANSFORM_MODEL")
+    multi_query_count: int = Field(default=3, alias="MULTI_QUERY_COUNT")
+
+    dense_top_k_per_subquery: int = Field(default=20, alias="DENSE_TOP_K_PER_SUBQUERY")
+    bm25_top_k: int = Field(default=30, alias="BM25_TOP_K")
+    rrf_k: int = Field(default=60, alias="RRF_K")
+    rerank_candidate_pool: int = Field(default=48, alias="RERANK_CANDIDATE_POOL")
+
+    cohere_rerank_model: str = Field(default="rerank-v3.5", alias="COHERE_RERANK_MODEL")
+    rerank_top_n: int = Field(default=8, alias="RERANK_TOP_N")
+
+    query_answer_model: str = Field(default="gpt-4o-mini", alias="QUERY_ANSWER_MODEL")
+    query_answer_max_tokens: int = Field(default=1024, alias="QUERY_ANSWER_MAX_TOKENS")
+
     @model_validator(mode="after")
     def validate_batch_and_chunk_fields(self) -> Self:
         """
@@ -56,6 +72,24 @@ class Settings(BaseSettings):
             raise ValueError("CHUNK_OVERLAP_TOKENS must be non-negative")
         if self.chunk_overlap_tokens >= self.chunk_max_tokens:
             raise ValueError("CHUNK_OVERLAP_TOKENS must be less than CHUNK_MAX_TOKENS")
+        if self.bm25_max_corpus_documents < 1:
+            raise ValueError("BM25_MAX_CORPUS_DOCUMENTS must be at least 1")
+        if self.multi_query_count < 1:
+            raise ValueError("MULTI_QUERY_COUNT must be at least 1")
+        if self.dense_top_k_per_subquery < 1:
+            raise ValueError("DENSE_TOP_K_PER_SUBQUERY must be at least 1")
+        if self.bm25_top_k < 1:
+            raise ValueError("BM25_TOP_K must be at least 1")
+        if self.rrf_k < 1:
+            raise ValueError("RRF_K must be at least 1")
+        if self.rerank_candidate_pool < 1:
+            raise ValueError("RERANK_CANDIDATE_POOL must be at least 1")
+        if self.rerank_top_n < 1:
+            raise ValueError("RERANK_TOP_N must be at least 1")
+        if self.rerank_top_n > self.rerank_candidate_pool:
+            raise ValueError("RERANK_TOP_N must not exceed RERANK_CANDIDATE_POOL")
+        if self.query_answer_max_tokens < 1:
+            raise ValueError("QUERY_ANSWER_MAX_TOKENS must be at least 1")
         return self
 
 
