@@ -79,6 +79,10 @@ class DocumentIndexItem(BaseModel):
 
     document_name: str
     chunk_count: int = Field(ge=0)
+    last_indexed_at: datetime | None = Field(
+        default=None,
+        description="Latest chunk indexed_at for this document (new ingests only)",
+    )
 
 
 class DocumentIndexResponse(BaseModel):
@@ -92,6 +96,11 @@ class DocumentIndexResponse(BaseModel):
         default=False,
         description="True when the scan stopped early at the configured point cap",
     )
+    total_documents: int = Field(
+        description="Distinct documents matched before limit/offset pagination",
+    )
+    limit: int = Field(ge=0, description="Page size applied after aggregation")
+    offset: int = Field(ge=0, description="Documents skipped from the sorted list")
 
 
 class WorkspacePreferences(BaseModel):

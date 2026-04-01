@@ -30,7 +30,7 @@ System status (dependency checks and non-secret model metadata for dashboards):
 - `GET /status`
 
 Document index (per workspace, from Qdrant chunk payloads; may truncate on very large corpora):
-- `GET /documents?company_id=demo`
+- `GET /documents?company_id=demo&limit=100&offset=0` (each row includes `chunk_count` and optional `last_indexed_at` for chunks ingested after this release)
 
 Workspace UI preferences (per `company_id`, stored in Redis; no auth yet):
 - `GET /workspace/preferences?company_id=demo`

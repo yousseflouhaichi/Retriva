@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from qdrant_client import AsyncQdrantClient
 
 from backend.core.config import Settings, get_settings
@@ -17,6 +17,12 @@ async def list_company_documents(
     company_id: str,
     qdrant: AsyncQdrantClient = Depends(get_qdrant_client),
     settings: Settings = Depends(get_settings),
+    limit: int | None = Query(
+        default=None,
+        ge=1,
+        description="Page size after aggregation (defaults from config, capped by max)",
+    ),
+    offset: int = Query(default=0, ge=0, description="Skip this many documents in the sorted list"),
 ) -> DocumentIndexResponse:
     """
     List distinct document_name values in the tenant Qdrant collection with chunk counts.
@@ -30,12 +36,31 @@ async def list_company_documents(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
+    max_limit = settings.document_list_max_limit
+    default_limit = settings.document_list_default_limit
+    requested = limit if limit is not None else default_limit
+    eff_limit = max(1, min(max_limit, requested))
+    eff_offset = offset
+
     try:
-        documents, truncated = await list_indexed_documents_for_company(settings, stripped, qdrant)
+        documents, truncated, total, used_limit, used_offset = await list_indexed_documents_for_company(
+            settings,
+            stripped,
+            qdrant,
+            limit=eff_limit,
+            offset=eff_offset,
+        )
     except Exception:
         raise HTTPException(
             status_code=503,
             detail="Could not list documents from the vector store",
         ) from None
 
-    return DocumentIndexResponse(company_id=stripped, documents=documents, truncated=truncated)
+    return DocumentIndexResponse(
+        company_id=stripped,
+        documents=documents,
+        truncated=truncated,
+        total_documents=total,
+        limit=used_limit,
+        offset=used_offset,
+    )

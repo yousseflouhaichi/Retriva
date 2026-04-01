@@ -7,6 +7,7 @@ Runs inside the ARQ worker, not the FastAPI process.
 from __future__ import annotations
 
 import uuid
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -60,6 +61,7 @@ async def run_document_ingestion(
         if len(vectors) != len(chunks):
             raise RuntimeError("Embedding count does not match chunk count")
 
+        indexed_at = datetime.now(timezone.utc).isoformat()
         batch_size = max(1, settings.qdrant_upsert_batch_size)
         points: list[PointStruct] = []
         for chunk, vector in zip(chunks, vectors, strict=True):
@@ -70,6 +72,7 @@ async def run_document_ingestion(
                 "chunk_type": chunk.chunk_type,
                 "parent_chunk_id": chunk.parent_chunk_id or "",
                 "job_id": job_id,
+                "indexed_at": indexed_at,
                 "text": chunk.text,
             }
             points.append(PointStruct(id=str(uuid.uuid4()), vector=vector, payload=payload))

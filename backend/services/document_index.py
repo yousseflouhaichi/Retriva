@@ -7,6 +7,7 @@ Used for document library UIs; never mixes data across company collections.
 from __future__ import annotations
 
 from collections import defaultdict
+from datetime import datetime, timezone
 
 from qdrant_client import AsyncQdrantClient
 
@@ -15,21 +16,43 @@ from backend.models.schemas import DocumentIndexItem
 from backend.services.collections import company_collection_name
 
 
+def _parse_indexed_at(raw: object) -> datetime | None:
+    """
+    Parse ISO-8601 indexed_at from chunk payload; return None when missing or invalid.
+    """
+
+    if not isinstance(raw, str) or not raw.strip():
+        return None
+    text = raw.strip().replace("Z", "+00:00")
+    try:
+        parsed = datetime.fromisoformat(text)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed
+
+
 async def list_indexed_documents_for_company(
     settings: Settings,
     company_id: str,
     client: AsyncQdrantClient,
-) -> tuple[list[DocumentIndexItem], bool]:
+    *,
+    limit: int,
+    offset: int,
+) -> tuple[list[DocumentIndexItem], bool, int, int, int]:
     """
-    Aggregate chunk counts by document_name for one tenant collection.
+    Aggregate chunk counts and latest indexed_at by document_name for one tenant.
 
     Args:
-        settings: Batch sizes and scan cap.
+        settings: Batch sizes, scan cap, and pagination bounds.
         company_id: Raw tenant id from the API.
         client: Shared async Qdrant client.
+        limit: Page size after aggregation (clamped to config).
+        offset: Documents to skip in the sorted name list (non-negative).
 
     Returns:
-        Sorted document rows and whether scanning stopped early due to the cap.
+        Page of rows, truncated scan flag, total distinct documents, effective limit, effective offset.
 
     Raises:
         ValueError: When company_id is invalid for collection naming.
@@ -39,24 +62,25 @@ async def list_indexed_documents_for_company(
     collection = company_collection_name(company_id)
     exists = await client.collection_exists(collection_name=collection)
     if not exists:
-        return [], False
+        return [], False, 0, limit, offset
 
     batch = max(1, settings.document_list_scroll_batch_size)
     max_points = max(1, settings.document_index_max_points_scanned)
 
     counts: dict[str, int] = defaultdict(int)
+    latest: dict[str, datetime | None] = defaultdict(lambda: None)
     scanned = 0
-    offset: str | int | None = None
+    scroll_offset: str | int | None = None
     truncated = False
 
     while scanned < max_points:
-        limit = min(batch, max_points - scanned)
-        if limit <= 0:
+        page_limit = min(batch, max_points - scanned)
+        if page_limit <= 0:
             break
         records, next_offset = await client.scroll(
             collection_name=collection,
-            limit=limit,
-            offset=offset,
+            limit=page_limit,
+            offset=scroll_offset,
             with_payload=True,
             with_vectors=False,
         )
@@ -65,18 +89,34 @@ async def list_indexed_documents_for_company(
         for record in records:
             payload = record.payload or {}
             name = payload.get("document_name")
-            if isinstance(name, str) and name.strip():
-                counts[name.strip()] += 1
+            if not isinstance(name, str) or not name.strip():
+                continue
+            key = name.strip()
+            counts[key] += 1
+            ts = _parse_indexed_at(payload.get("indexed_at"))
+            if ts is not None:
+                prev = latest[key]
+                if prev is None or ts > prev:
+                    latest[key] = ts
         scanned += len(records)
-        offset = next_offset
-        if offset is None:
+        scroll_offset = next_offset
+        if scroll_offset is None:
             break
         if scanned >= max_points:
             truncated = True
             break
 
+    sorted_names = sorted(counts.keys(), key=lambda value: value.lower())
+    total = len(sorted_names)
+    eff_offset = max(0, offset)
+    page_names = sorted_names[eff_offset : eff_offset + limit]
+
     items = [
-        DocumentIndexItem(document_name=name, chunk_count=count)
-        for name, count in sorted(counts.items(), key=lambda pair: pair[0].lower())
+        DocumentIndexItem(
+            document_name=name,
+            chunk_count=counts[name],
+            last_indexed_at=latest[name],
+        )
+        for name in page_names
     ]
-    return items, truncated
+    return items, truncated, total, limit, eff_offset

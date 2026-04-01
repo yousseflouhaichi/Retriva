@@ -42,6 +42,8 @@ class Settings(BaseSettings):
     qdrant_upsert_batch_size: int = Field(default=64, alias="QDRANT_UPSERT_BATCH_SIZE")
     document_list_scroll_batch_size: int = Field(default=256, alias="DOCUMENT_LIST_SCROLL_BATCH_SIZE")
     document_index_max_points_scanned: int = Field(default=50_000, alias="DOCUMENT_INDEX_MAX_POINTS_SCANNED")
+    document_list_default_limit: int = Field(default=100, alias="DOCUMENT_LIST_DEFAULT_LIMIT")
+    document_list_max_limit: int = Field(default=500, alias="DOCUMENT_LIST_MAX_LIMIT")
 
     bm25_max_corpus_documents: int = Field(default=50_000, alias="BM25_MAX_CORPUS_DOCUMENTS")
 
@@ -99,6 +101,12 @@ class Settings(BaseSettings):
             raise ValueError("DOCUMENT_LIST_SCROLL_BATCH_SIZE must be at least 1")
         if self.document_index_max_points_scanned < 1:
             raise ValueError("DOCUMENT_INDEX_MAX_POINTS_SCANNED must be at least 1")
+        if self.document_list_default_limit < 1:
+            raise ValueError("DOCUMENT_LIST_DEFAULT_LIMIT must be at least 1")
+        if self.document_list_max_limit < 1:
+            raise ValueError("DOCUMENT_LIST_MAX_LIMIT must be at least 1")
+        if self.document_list_default_limit > self.document_list_max_limit:
+            raise ValueError("DOCUMENT_LIST_DEFAULT_LIMIT must not exceed DOCUMENT_LIST_MAX_LIMIT")
         return self
 
 
