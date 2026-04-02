@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 export type IngestPhase = "idle" | "uploading" | "queued" | "processing" | "ready" | "failed";
 
 export interface UploadZoneProps {
-  companyId: string;
+  workspaceId: string;
   apiBaseUrl: string;
   compact?: boolean;
   /** Called once when ingestion reaches ready (e.g. refresh document index). */
@@ -21,7 +21,7 @@ interface StatusPayload {
   chunks_indexed?: number | null;
 }
 
-export function UploadZone({ companyId, apiBaseUrl, compact = false, onIngestSuccess }: UploadZoneProps) {
+export function UploadZone({ workspaceId, apiBaseUrl, compact = false, onIngestSuccess }: UploadZoneProps) {
   const [phase, setPhase] = useState<IngestPhase>("idle");
   const [jobId, setJobId] = useState<string | null>(null);
   const [detail, setDetail] = useState<string | null>(null);
@@ -42,8 +42,8 @@ export function UploadZone({ companyId, apiBaseUrl, compact = false, onIngestSuc
 
   const uploadFile = useCallback(
     async (file: File) => {
-      if (!companyId.trim()) {
-        setUserError("Choose a workspace before uploading.");
+      if (!workspaceId.trim()) {
+        setUserError("Choose or create a workspace before uploading.");
         return;
       }
       setUserError(null);
@@ -52,7 +52,7 @@ export function UploadZone({ companyId, apiBaseUrl, compact = false, onIngestSuc
       setChunks(null);
       const form = new FormData();
       form.append("file", file);
-      const url = `${apiBaseUrl}/ingest/upload?company_id=${encodeURIComponent(companyId)}`;
+      const url = `${apiBaseUrl}/ingest/upload?company_id=${encodeURIComponent(workspaceId)}`;
       try {
         const response = await fetch(url, { method: "POST", body: form });
         if (!response.ok) {
@@ -77,7 +77,7 @@ export function UploadZone({ companyId, apiBaseUrl, compact = false, onIngestSuc
         setPhase("failed");
       }
     },
-    [apiBaseUrl, companyId],
+    [apiBaseUrl, workspaceId],
   );
 
   useEffect(() => {
@@ -125,9 +125,14 @@ export function UploadZone({ companyId, apiBaseUrl, compact = false, onIngestSuc
     }
   }, [phase, onIngestSuccess]);
 
+  const canUpload = workspaceId.trim().length > 0;
+
   const onDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
+    if (!canUpload) {
+      return;
+    }
     const file = e.dataTransfer.files[0];
     if (file) {
       void uploadFile(file);
@@ -166,8 +171,11 @@ export function UploadZone({ companyId, apiBaseUrl, compact = false, onIngestSuc
       <CardContent className={contentClass}>
         <div
           role="button"
-          tabIndex={0}
+          tabIndex={canUpload ? 0 : -1}
           onKeyDown={(e) => {
+            if (!canUpload) {
+              return;
+            }
             if (e.key === "Enter" || e.key === " ") {
               e.preventDefault();
               fileInputRef.current?.click();
@@ -175,7 +183,9 @@ export function UploadZone({ companyId, apiBaseUrl, compact = false, onIngestSuc
           }}
           onDragEnter={(e) => {
             e.preventDefault();
-            setIsDragging(true);
+            if (canUpload) {
+              setIsDragging(true);
+            }
           }}
           onDragLeave={(e) => {
             e.preventDefault();
@@ -184,13 +194,18 @@ export function UploadZone({ companyId, apiBaseUrl, compact = false, onIngestSuc
           onDragOver={(e) => e.preventDefault()}
           onDrop={onDrop}
           className={cn(
-            "flex cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed border-border/60 bg-muted/35 text-center text-muted-foreground transition-colors",
+            "flex flex-col items-center justify-center rounded-lg border border-dashed border-border/60 bg-muted/35 text-center text-muted-foreground transition-colors",
             dropMinH,
             dropPad,
             compact ? "text-xs" : "text-sm",
-            isDragging && "border-primary/80 bg-muted",
+            isDragging && canUpload && "border-primary/80 bg-muted",
+            canUpload ? "cursor-pointer" : "cursor-not-allowed opacity-50",
           )}
-          onClick={() => fileInputRef.current?.click()}
+          onClick={() => {
+            if (canUpload) {
+              fileInputRef.current?.click();
+            }
+          }}
         >
           <Upload className={cn("mb-2 opacity-60", compact ? "h-6 w-6" : "h-8 w-8")} />
           <p>{phaseLabel}</p>

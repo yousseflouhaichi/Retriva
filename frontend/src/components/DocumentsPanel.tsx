@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 const PAGE_SIZE = 20;
 
 export interface DocumentsPanelProps {
-  companyId: string;
+  workspaceId: string;
   apiBaseUrl: string;
   compact?: boolean;
   /** Bump to refetch after ingestion completes. */
@@ -34,21 +34,24 @@ function formatIndexedAt(iso: string | null): string {
 /**
  * Paginated document index from GET /documents for the active workspace.
  */
-export function DocumentsPanel({ companyId, apiBaseUrl, compact = false, refreshToken }: DocumentsPanelProps) {
+export function DocumentsPanel({ workspaceId, apiBaseUrl, compact = false, refreshToken }: DocumentsPanelProps) {
   const [offset, setOffset] = useState(0);
   const [data, setData] = useState<DocumentIndexResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   const fetchPage = useCallback(async () => {
-    if (!companyId.trim()) {
+    if (!workspaceId.trim()) {
+      setLoading(false);
+      setData(null);
+      setError(null);
       return;
     }
     setLoading(true);
     setError(null);
     try {
       const params = new URLSearchParams({
-        company_id: companyId.trim(),
+        company_id: workspaceId.trim(),
         limit: String(PAGE_SIZE),
         offset: String(offset),
       });
@@ -89,7 +92,11 @@ export function DocumentsPanel({ companyId, apiBaseUrl, compact = false, refresh
     } finally {
       setLoading(false);
     }
-  }, [apiBaseUrl, companyId, offset]);
+  }, [apiBaseUrl, workspaceId, offset]);
+
+  useEffect(() => {
+    setOffset(0);
+  }, [workspaceId]);
 
   useEffect(() => {
     void fetchPage();

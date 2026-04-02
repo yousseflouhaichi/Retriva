@@ -9,7 +9,7 @@ import {
 /**
  * Loads and patches per-workspace UI preferences from the API; syncs theme class on document root.
  */
-export function useWorkspacePreferences(companyId: string, apiBaseUrl: string | null): {
+export function useWorkspacePreferences(workspaceId: string, apiBaseUrl: string | null): {
   preferences: WorkspacePreferences;
   preferencesLoading: boolean;
   preferencesError: string | null;
@@ -20,7 +20,7 @@ export function useWorkspacePreferences(companyId: string, apiBaseUrl: string | 
   const [preferencesError, setPreferencesError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!apiBaseUrl || !companyId.trim()) {
+    if (!apiBaseUrl || !workspaceId.trim()) {
       return;
     }
     let cancelled = false;
@@ -28,7 +28,7 @@ export function useWorkspacePreferences(companyId: string, apiBaseUrl: string | 
     setPreferencesError(null);
     void (async () => {
       try {
-        const params = new URLSearchParams({ company_id: companyId.trim() });
+        const params = new URLSearchParams({ company_id: workspaceId.trim() });
         const response = await fetch(`${apiBaseUrl}/workspace/preferences?${params.toString()}`);
         if (!response.ok) {
           throw new Error(`Could not load preferences (${response.status})`);
@@ -51,7 +51,7 @@ export function useWorkspacePreferences(companyId: string, apiBaseUrl: string | 
     return () => {
       cancelled = true;
     };
-  }, [apiBaseUrl, companyId]);
+  }, [apiBaseUrl, workspaceId]);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -78,11 +78,11 @@ export function useWorkspacePreferences(companyId: string, apiBaseUrl: string | 
 
   const patchPreferences = useCallback(
     async (patch: WorkspacePreferencesPatch): Promise<void> => {
-      if (!apiBaseUrl || !companyId.trim()) {
+      if (!apiBaseUrl || !workspaceId.trim()) {
         return;
       }
       setPreferencesError(null);
-      const params = new URLSearchParams({ company_id: companyId.trim() });
+      const params = new URLSearchParams({ company_id: workspaceId.trim() });
       const response = await fetch(`${apiBaseUrl}/workspace/preferences?${params.toString()}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -104,7 +104,7 @@ export function useWorkspacePreferences(companyId: string, apiBaseUrl: string | 
       const raw = (await response.json()) as unknown;
       setPreferences(normalizeWorkspacePreferencesBody(raw));
     },
-    [apiBaseUrl, companyId],
+    [apiBaseUrl, workspaceId],
   );
 
   return {

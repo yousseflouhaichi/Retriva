@@ -16,14 +16,14 @@ export interface ChatMessage {
 }
 
 export interface ChatWindowProps {
-  companyId: string;
+  workspaceId: string;
   apiBaseUrl: string;
   compact?: boolean;
   showStreamingIndicator?: boolean;
 }
 
 export function ChatWindow({
-  companyId,
+  workspaceId,
   apiBaseUrl,
   compact = false,
   showStreamingIndicator = true,
@@ -36,7 +36,7 @@ export function ChatWindow({
 
   const send = useCallback(async () => {
     const text = draft.trim();
-    if (!text || !companyId.trim()) {
+    if (!text || !workspaceId.trim()) {
       return;
     }
     const userMsg: ChatMessage = { id: crypto.randomUUID(), role: "user", content: text };
@@ -48,7 +48,7 @@ export function ChatWindow({
 
     await postStream(
       `${apiBaseUrl}/query/stream`,
-      { company_id: companyId, question: text },
+      { company_id: workspaceId, question: text },
       {
         onSources: (sources) => {
           setMessages((prev) =>
@@ -70,7 +70,7 @@ export function ChatWindow({
         },
       },
     );
-  }, [apiBaseUrl, companyId, draft, postStream]);
+  }, [apiBaseUrl, workspaceId, draft, postStream]);
 
   const headerPad = compact ? "p-3 pb-2" : undefined;
   const titleClass = compact ? "text-xs font-semibold uppercase tracking-wide text-muted-foreground" : "text-base font-medium";
@@ -164,7 +164,7 @@ export function ChatWindow({
               type="button"
               size={compact ? "sm" : "default"}
               onClick={() => void send()}
-              disabled={!draft.trim() || !companyId.trim()}
+              disabled={!draft.trim() || !workspaceId.trim()}
             >
               Send
             </Button>

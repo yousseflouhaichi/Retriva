@@ -9,10 +9,11 @@ import { WorkspaceSelector } from "@/components/WorkspaceSelector";
 import { useWorkspacePreferences } from "@/hooks/useWorkspacePreferences";
 import {
   appendExtraWorkspaceId,
+  clearLastWorkspaceId,
   mergeWorkspaceIds,
-  persistLastCompanyId,
+  persistLastWorkspaceId,
   readExtraWorkspaceIds,
-  readLastCompanyId,
+  readLastWorkspaceId,
 } from "@/lib/workspacesStorage";
 import { getApiBaseUrl } from "@/lib/utils";
 
@@ -25,13 +26,13 @@ export default function App() {
     }
   }, []);
 
-  const [workspaces, setWorkspaces] = useState<string[]>(["demo"]);
-  const [companyId, setCompanyId] = useState("demo");
+  const [workspaces, setWorkspaces] = useState<string[]>([]);
+  const [workspaceId, setWorkspaceId] = useState("");
   const [workspacesReady, setWorkspacesReady] = useState(false);
   const [documentsRefreshToken, setDocumentsRefreshToken] = useState(0);
 
   const { preferences, preferencesLoading, preferencesError, patchPreferences } = useWorkspacePreferences(
-    companyId,
+    workspaceId,
     apiBase,
   );
 
@@ -67,23 +68,25 @@ export default function App() {
         return;
       }
 
-      let merged = mergeWorkspaceIds(fromApi, extras);
-      if (merged.length === 0) {
-        merged = ["demo"];
-      }
+      const merged = mergeWorkspaceIds(fromApi, extras);
       setWorkspaces(merged);
 
-      const last = readLastCompanyId();
-      if (last && merged.includes(last)) {
-        setCompanyId(last);
-      } else if (merged.includes("demo")) {
-        setCompanyId("demo");
-        persistLastCompanyId("demo");
+      if (merged.length === 0) {
+        setWorkspaceId("");
+        clearLastWorkspaceId();
+      } else if (merged.length === 1) {
+        const only = merged[0];
+        if (only !== undefined) {
+          setWorkspaceId(only);
+          persistLastWorkspaceId(only);
+        }
       } else {
-        const first = merged[0];
-        if (first) {
-          setCompanyId(first);
-          persistLastCompanyId(first);
+        const last = readLastWorkspaceId();
+        if (last && merged.includes(last)) {
+          setWorkspaceId(last);
+        } else {
+          setWorkspaceId("");
+          clearLastWorkspaceId();
         }
       }
       setWorkspacesReady(true);
@@ -94,21 +97,18 @@ export default function App() {
     };
   }, [apiBase]);
 
-  const handleCompanyChange = useCallback((id: string) => {
-    setCompanyId(id);
-    persistLastCompanyId(id);
+  const handleWorkspaceChange = useCallback((id: string) => {
+    setWorkspaceId(id);
+    persistLastWorkspaceId(id);
   }, []);
 
   const handleAddWorkspace = useCallback(
     (id: string) => {
       appendExtraWorkspaceId(id);
-      setWorkspaces((previous) => {
-        const next = mergeWorkspaceIds(previous, [id]);
-        return next.length === 0 ? ["demo"] : next;
-      });
-      handleCompanyChange(id);
+      setWorkspaces((previous) => mergeWorkspaceIds(previous, [id]));
+      handleWorkspaceChange(id);
     },
-    [handleCompanyChange],
+    [handleWorkspaceChange],
   );
 
   if (apiBase === null) {
@@ -135,7 +135,7 @@ export default function App() {
             </div>
             <WorkspacePreferencesBar
               preferences={preferences}
-              disabled={preferencesLoading}
+              disabled={preferencesLoading || !workspaceId.trim()}
               compact={compactLayout}
               onPatch={(patch) => {
                 void patchPreferences(patch);
@@ -148,8 +148,8 @@ export default function App() {
             </p>
           )}
           <WorkspaceSelector
-            value={companyId}
-            onChange={handleCompanyChange}
+            value={workspaceId}
+            onChange={handleWorkspaceChange}
             workspaces={workspaces}
             onAddWorkspace={handleAddWorkspace}
             compact={compactLayout}
@@ -161,8 +161,8 @@ export default function App() {
         <aside className="flex flex-col gap-3 lg:min-h-0">
           <SystemStatusPanel apiBaseUrl={apiBase} compact={compactLayout} />
           <DocumentsPanel
-            key={companyId}
-            companyId={companyId}
+            key={workspaceId}
+            workspaceId={workspaceId}
             apiBaseUrl={apiBase}
             compact={compactLayout}
             refreshToken={documentsRefreshToken}
@@ -179,13 +179,13 @@ export default function App() {
             className={`flex min-h-0 flex-1 flex-col gap-3 ${workspacesReady ? "" : "pointer-events-none opacity-50"}`}
           >
             <UploadZone
-              companyId={companyId}
+              workspaceId={workspaceId}
               apiBaseUrl={apiBase}
               compact={compactLayout}
               onIngestSuccess={bumpDocuments}
             />
             <ChatWindow
-              companyId={companyId}
+              workspaceId={workspaceId}
               apiBaseUrl={apiBase}
               compact={compactLayout}
               showStreamingIndicator={preferences.show_streaming_indicator}

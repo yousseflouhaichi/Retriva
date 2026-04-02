@@ -175,14 +175,14 @@ export function parseDocumentIndexResponse(raw: unknown): DocumentIndexResponse 
     return null;
   }
   const body = raw as Record<string, unknown>;
-  const companyIdRaw = body.company_id;
-  const companyId =
-    typeof companyIdRaw === "string"
-      ? companyIdRaw
-      : companyIdRaw !== null && companyIdRaw !== undefined
-        ? String(companyIdRaw)
+  const workspaceIdRaw = body.company_id;
+  const workspaceId =
+    typeof workspaceIdRaw === "string"
+      ? workspaceIdRaw
+      : workspaceIdRaw !== null && workspaceIdRaw !== undefined
+        ? String(workspaceIdRaw)
         : "";
-  if (!companyId.trim()) {
+  if (!workspaceId.trim()) {
     return null;
   }
   if (!Array.isArray(body.documents)) {
@@ -196,7 +196,7 @@ export function parseDocumentIndexResponse(raw: unknown): DocumentIndexResponse 
   const offset = Math.max(0, Math.floor(toFiniteNumber(body.offset, 0)));
   const truncated = toBool(body.truncated, false);
   return {
-    company_id: companyId,
+    company_id: workspaceId,
     documents,
     truncated,
     total_documents: totalDocuments,
