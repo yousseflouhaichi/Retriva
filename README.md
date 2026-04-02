@@ -51,6 +51,7 @@ uv run arq backend.workers.ingestion_worker.WorkerSettings
 - Set `OPENAI_API_KEY` in `.env` (embeddings are required for indexing).
 - `POST /ingest/upload?company_id=demo` with multipart form file `file` (returns **409** if a document with the same filename already exists in that workspace)
 - Poll `GET /ingest/status/{job_id}` until `ready` (response includes `chunks_indexed` when using the JSON status format)
+- Ingestion timeouts: `UNSTRUCTURED_TIMEOUT_SECONDS` caps the Unstructured HTTP parse. The ARQ worker uses a **longer** default job limit (`UNSTRUCTURED_TIMEOUT_SECONDS` + `INGESTION_JOB_TIMEOUT_BUFFER_SECONDS`, or set `INGESTION_JOB_TIMEOUT_SECONDS` explicitly). The effective job limit must stay **above** the Unstructured timeout or settings validation fails at startup.
 
 ### Try streaming query
 - Set `OPENAI_API_KEY` and **`COHERE_API_KEY`** in `.env` (transform, retrieval rerank, and answer generation).

@@ -41,7 +41,25 @@ class Settings(BaseSettings):
     chunk_overlap_tokens: int = Field(default=64, alias="CHUNK_OVERLAP_TOKENS")
     tiktoken_encoding: str = Field(default="cl100k_base", alias="TIKTOKEN_ENCODING")
 
-    unstructured_timeout_seconds: float = Field(default=120.0, alias="UNSTRUCTURED_TIMEOUT_SECONDS")
+    unstructured_timeout_seconds: float = Field(
+        default=120.0,
+        alias="UNSTRUCTURED_TIMEOUT_SECONDS",
+        description="Max seconds for the Unstructured HTTP parse (httpx read timeout).",
+    )
+    ingestion_job_timeout_seconds: float | None = Field(
+        default=None,
+        alias="INGESTION_JOB_TIMEOUT_SECONDS",
+        description=(
+            "ARQ max runtime for one ingest job. When unset, uses UNSTRUCTURED_TIMEOUT_SECONDS plus "
+            "INGESTION_JOB_TIMEOUT_BUFFER_SECONDS."
+        ),
+    )
+    ingestion_job_timeout_buffer_seconds: float = Field(
+        default=180.0,
+        alias="INGESTION_JOB_TIMEOUT_BUFFER_SECONDS",
+        description="Added to UNSTRUCTURED_TIMEOUT_SECONDS for the default ARQ job timeout when override is unset.",
+    )
+
     status_dependency_timeout_seconds: float = Field(default=3.0, alias="STATUS_DEPENDENCY_TIMEOUT_SECONDS")
 
     qdrant_upsert_batch_size: int = Field(default=64, alias="QDRANT_UPSERT_BATCH_SIZE")
@@ -112,7 +130,34 @@ class Settings(BaseSettings):
             raise ValueError("DOCUMENT_LIST_MAX_LIMIT must be at least 1")
         if self.document_list_default_limit > self.document_list_max_limit:
             raise ValueError("DOCUMENT_LIST_DEFAULT_LIMIT must not exceed DOCUMENT_LIST_MAX_LIMIT")
+        if self.unstructured_timeout_seconds <= 0:
+            raise ValueError("UNSTRUCTURED_TIMEOUT_SECONDS must be positive")
+        if self.ingestion_job_timeout_buffer_seconds < 0:
+            raise ValueError("INGESTION_JOB_TIMEOUT_BUFFER_SECONDS must be non-negative")
+        if self.ingestion_job_timeout_seconds is not None and self.ingestion_job_timeout_seconds <= 0:
+            raise ValueError("INGESTION_JOB_TIMEOUT_SECONDS must be positive when set")
+        parse_wait = float(self.unstructured_timeout_seconds)
+        effective_job = (
+            float(self.ingestion_job_timeout_seconds)
+            if self.ingestion_job_timeout_seconds is not None
+            else parse_wait + float(self.ingestion_job_timeout_buffer_seconds)
+        )
+        if effective_job <= parse_wait:
+            raise ValueError(
+                "Effective ingestion job timeout must exceed UNSTRUCTURED_TIMEOUT_SECONDS; "
+                "raise INGESTION_JOB_TIMEOUT_SECONDS or INGESTION_JOB_TIMEOUT_BUFFER_SECONDS.",
+            )
         return self
+
+    def effective_ingestion_job_timeout_seconds(self) -> float:
+        """
+        ARQ job_timeout for ingest_document: explicit override or parse timeout plus buffer.
+        """
+
+        parse_wait = float(self.unstructured_timeout_seconds)
+        if self.ingestion_job_timeout_seconds is not None:
+            return float(self.ingestion_job_timeout_seconds)
+        return parse_wait + float(self.ingestion_job_timeout_buffer_seconds)
 
     def cors_extra_allow_origins_list(self) -> list[str]:
         """

@@ -6,6 +6,7 @@ Runs as a separate process from FastAPI and updates job status in Redis.
 
 from __future__ import annotations
 
+import asyncio
 import json
 from pathlib import Path
 from typing import Any
@@ -62,6 +63,21 @@ async def ingest_document(
             ),
             ex=60 * 60,
         )
+    except asyncio.CancelledError:
+        await redis.set(
+            _job_key(job_id),
+            json.dumps(
+                {
+                    "status": "failed",
+                    "detail": (
+                        "Ingestion was cancelled or hit the worker time limit (ARQ job_timeout). "
+                        "Increase INGESTION_JOB_TIMEOUT_SECONDS or UNSTRUCTURED_TIMEOUT_SECONDS plus buffer if parsing is slow."
+                    ),
+                }
+            ),
+            ex=60 * 60,
+        )
+        raise
     except Exception as exc:
         await redis.set(
             _job_key(job_id),
@@ -74,5 +90,6 @@ async def ingest_document(
 class WorkerSettings:
     functions = [ingest_document]
 
-    settings = get_settings()
-    redis_settings = RedisSettings.from_dsn(settings.redis_url)
+    _settings = get_settings()
+    redis_settings = RedisSettings.from_dsn(_settings.redis_url)
+    job_timeout = _settings.effective_ingestion_job_timeout_seconds()
