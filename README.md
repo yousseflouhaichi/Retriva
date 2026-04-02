@@ -25,6 +25,7 @@ Health check:
 
 Workspaces (for the UI dropdown): Qdrant collections whose names are valid workspace ids (letters, digits, `-`, `_`) are listed by
 - `GET /workspaces` (returns JSON `{"workspaces": ["id", ...]}` sorted). Legacy collections named `company_{id}` still appear as `id`.
+- `POST /workspaces` with JSON `{"workspace_id": "your-id"}` creates an empty Qdrant collection when missing (same id rules as ingest). Response: `{"workspace_id": "...", "created": true|false}`.
 
 New data is stored under the plain id collection (for example `demo`, not `company_demo`). If you still have vectors only under `company_{id}`, migrate or re-ingest into the plain-named collection.
 

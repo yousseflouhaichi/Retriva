@@ -13,6 +13,8 @@ export interface WorkspaceSelectorProps {
   onChange: (workspaceId: string) => void;
   workspaces: string[];
   onAddWorkspace: (workspaceId: string) => void;
+  /** API base URL; used to POST /workspaces so Qdrant gets an empty collection immediately. */
+  apiBaseUrl: string;
   compact?: boolean;
 }
 
@@ -37,11 +39,13 @@ export function WorkspaceSelector({
   onChange,
   workspaces,
   onAddWorkspace,
+  apiBaseUrl,
   compact = false,
 }: WorkspaceSelectorProps) {
   const [addOpen, setAddOpen] = useState(false);
   const [draft, setDraft] = useState("");
   const [addError, setAddError] = useState<string | null>(null);
+  const [addSubmitting, setAddSubmitting] = useState(false);
   const draftInputRef = useRef<HTMLInputElement>(null);
 
   const selectValue = useMemo(() => {
@@ -88,7 +92,7 @@ export function WorkspaceSelector({
   const showSingleName = workspaces.length === 1;
   const showEmpty = workspaces.length === 0;
 
-  const submitNewWorkspace = () => {
+  const submitNewWorkspace = async () => {
     const trimmed = draft.trim();
     if (!trimmed) {
       setAddError("Enter a workspace id.");
@@ -99,9 +103,39 @@ export function WorkspaceSelector({
       return;
     }
     setAddError(null);
-    onAddWorkspace(trimmed);
-    onChange(trimmed);
-    setAddOpen(false);
+    setAddSubmitting(true);
+    try {
+      const response = await fetch(`${apiBaseUrl}/workspaces`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ workspace_id: trimmed }),
+      });
+      if (!response.ok) {
+        let message = `Request failed (${response.status})`;
+        try {
+          const body = (await response.json()) as { detail?: unknown };
+          if (typeof body.detail === "string") {
+            message = body.detail;
+          } else if (Array.isArray(body.detail) && body.detail.length > 0) {
+            const first = body.detail[0] as { msg?: string };
+            if (typeof first?.msg === "string") {
+              message = first.msg;
+            }
+          }
+        } catch {
+          /* keep default */
+        }
+        setAddError(message);
+        return;
+      }
+      onAddWorkspace(trimmed);
+      onChange(trimmed);
+      setAddOpen(false);
+    } catch {
+      setAddError("Could not reach the API. Check the server and your network.");
+    } finally {
+      setAddSubmitting(false);
+    }
   };
 
   const addButtonClass = cn(
@@ -195,9 +229,10 @@ export function WorkspaceSelector({
                 onKeyDown={(e) => {
                   if (e.key === "Enter") {
                     e.preventDefault();
-                    submitNewWorkspace();
+                    void submitNewWorkspace();
                   }
                 }}
+                disabled={addSubmitting}
                 placeholder="e.g. product-docs"
                 className="h-9"
                 autoComplete="off"
@@ -216,11 +251,17 @@ export function WorkspaceSelector({
               )}
             </div>
             <div className="flex justify-end gap-2">
-              <Button type="button" variant="ghost" size="sm" onClick={() => setAddOpen(false)}>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                disabled={addSubmitting}
+                onClick={() => setAddOpen(false)}
+              >
                 Cancel
               </Button>
-              <Button type="button" size="sm" onClick={submitNewWorkspace}>
-                Create
+              <Button type="button" size="sm" disabled={addSubmitting} onClick={() => void submitNewWorkspace()}>
+                {addSubmitting ? "Creating…" : "Create"}
               </Button>
             </div>
           </PopoverContent>

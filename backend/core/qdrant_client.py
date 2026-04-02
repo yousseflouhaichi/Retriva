@@ -7,18 +7,22 @@ Keeps Qdrant wiring in one place so routers/services can depend-inject a client.
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
+from typing import Annotated
 
+from fastapi import Depends
 from qdrant_client import AsyncQdrantClient
 
 from backend.core.config import Settings, get_settings
 
 
-async def get_qdrant_client(settings: Settings | None = None) -> AsyncIterator[AsyncQdrantClient]:
+async def get_qdrant_client(
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> AsyncIterator[AsyncQdrantClient]:
     """
     Provide an AsyncQdrantClient configured from Settings.
     """
 
-    cfg = settings or get_settings()
+    cfg = settings
     client = AsyncQdrantClient(url=cfg.qdrant_url)
     try:
         yield client

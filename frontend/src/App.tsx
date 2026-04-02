@@ -152,6 +152,7 @@ export default function App() {
             onChange={handleWorkspaceChange}
             workspaces={workspaces}
             onAddWorkspace={handleAddWorkspace}
+            apiBaseUrl={apiBase}
             compact={compactLayout}
           />
         </div>

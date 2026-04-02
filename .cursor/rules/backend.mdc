@@ -39,7 +39,7 @@ globs: backend/**/*.py
   4. Embed with text-embedding-3-large
   5. Store in Qdrant and BM25 index
 - Every chunk payload must include:
-  company_id, document_name, page_number, chunk_type,
+  workspace_id, document_name, page_number, chunk_type,
   parent_chunk_id, image_path (if applicable)
 - Embed this string, not just chunk text:
   "{document_name} | page {page_number} | {section_header} | {chunk_text}"

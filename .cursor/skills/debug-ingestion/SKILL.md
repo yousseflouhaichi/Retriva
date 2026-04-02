@@ -14,7 +14,7 @@ Use this when ingestion jobs are failing, stuck, or producing bad chunks.
 6. Check the uploads/ directory has the file saved correctly
 7. Check the Qdrant collection exists for the company_id
 8. Check chunk payloads have all required fields:
-   company_id, document_name, page_number, chunk_type, parent_chunk_id
+   workspace_id, document_name, page_number, chunk_type, parent_chunk_id
 
 ## Common failures
 - Job stuck at processing: ARQ worker crashed, restart it

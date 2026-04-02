@@ -125,3 +125,32 @@ async def ensure_company_collection(
         vectors_config=VectorParams(size=settings.embeddings_dim, distance=Distance.COSINE),
     )
     return name
+
+
+async def ensure_workspace_collection(
+    client: AsyncQdrantClient,
+    settings: Settings,
+    raw_workspace_id: str,
+) -> tuple[str, bool]:
+    """
+    Ensure a Qdrant collection exists for the workspace; create it when missing.
+
+    Args:
+        client: Qdrant async client.
+        settings: App settings for embedding vector size.
+        raw_workspace_id: Workspace id from the client (trimmed and validated).
+
+    Returns:
+        Normalized collection name and whether this call created the collection.
+
+    Raises:
+        ValueError: If workspace id is empty or invalid for collection naming.
+    """
+
+    stripped = raw_workspace_id.strip()
+    if not stripped:
+        raise ValueError("workspace_id is required")
+    name = company_collection_name(stripped)
+    existed_before = await client.collection_exists(collection_name=name)
+    await ensure_company_collection(client, settings, stripped)
+    return name, not existed_before

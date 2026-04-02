@@ -66,7 +66,7 @@ async def run_document_ingestion(
         points: list[PointStruct] = []
         for chunk, vector in zip(chunks, vectors, strict=True):
             payload: dict[str, Any] = {
-                "company_id": company_id.strip(),
+                "workspace_id": company_id.strip(),
                 "document_name": original_filename,
                 "page_number": chunk.page_number,
                 "chunk_type": chunk.chunk_type,

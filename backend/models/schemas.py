@@ -41,6 +41,26 @@ class WorkspacesListResponse(BaseModel):
     workspaces: list[str] = Field(description="Sorted unique workspace ids with indexed data in Qdrant")
 
 
+class WorkspaceEnsureRequest(BaseModel):
+    """
+    Ask the API to provision an empty vector collection for a workspace.
+    """
+
+    workspace_id: str = Field(
+        min_length=1,
+        description="Workspace id; same character rules as the ingest tenant id",
+    )
+
+
+class WorkspaceEnsureResponse(BaseModel):
+    """
+    Result of ensuring a workspace collection exists in Qdrant.
+    """
+
+    workspace_id: str = Field(description="Normalized workspace id used as the Qdrant collection name")
+    created: bool = Field(description="True when a new Qdrant collection was created in this request")
+
+
 class DependencyCheckResult(BaseModel):
     """
     One infrastructure dependency probe result for status dashboards.

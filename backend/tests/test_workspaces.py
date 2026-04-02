@@ -85,3 +85,100 @@ async def test_get_workspaces_endpoint_503_when_qdrant_fails(async_client: Async
 
     assert response.status_code == 503
     assert "vector store" in response.json()["detail"].lower()
+
+
+@pytest.mark.asyncio
+async def test_post_workspaces_creates_collection_when_missing(async_client: AsyncClient) -> None:
+    """
+    POST /workspaces creates a Qdrant collection and returns created=true.
+    """
+
+    mock_qdrant = AsyncMock(spec=AsyncQdrantClient)
+    mock_qdrant.collection_exists = AsyncMock(return_value=False)
+    mock_qdrant.create_collection = AsyncMock()
+
+    async def _override_qdrant():
+        yield mock_qdrant
+
+    app.dependency_overrides[get_qdrant_client] = _override_qdrant
+    try:
+        response = await async_client.post("/workspaces", json={"workspace_id": "newspace"})
+    finally:
+        app.dependency_overrides.pop(get_qdrant_client, None)
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["workspace_id"] == "newspace"
+    assert payload["created"] is True
+    mock_qdrant.create_collection.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_post_workspaces_idempotent_when_collection_exists(async_client: AsyncClient) -> None:
+    """
+    POST /workspaces returns created=false when the collection already exists.
+    """
+
+    mock_qdrant = AsyncMock(spec=AsyncQdrantClient)
+    mock_qdrant.collection_exists = AsyncMock(return_value=True)
+    mock_qdrant.create_collection = AsyncMock()
+
+    async def _override_qdrant():
+        yield mock_qdrant
+
+    app.dependency_overrides[get_qdrant_client] = _override_qdrant
+    try:
+        response = await async_client.post("/workspaces", json={"workspace_id": "existing"})
+    finally:
+        app.dependency_overrides.pop(get_qdrant_client, None)
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["workspace_id"] == "existing"
+    assert payload["created"] is False
+    mock_qdrant.create_collection.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_post_workspaces_rejects_invalid_workspace_id(async_client: AsyncClient) -> None:
+    """
+    Invalid workspace id returns 400 before touching create_collection.
+    """
+
+    mock_qdrant = AsyncMock(spec=AsyncQdrantClient)
+    mock_qdrant.collection_exists = AsyncMock()
+    mock_qdrant.create_collection = AsyncMock()
+
+    async def _override_qdrant():
+        yield mock_qdrant
+
+    app.dependency_overrides[get_qdrant_client] = _override_qdrant
+    try:
+        response = await async_client.post("/workspaces", json={"workspace_id": "###"})
+    finally:
+        app.dependency_overrides.pop(get_qdrant_client, None)
+
+    assert response.status_code == 400
+    mock_qdrant.create_collection.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_post_workspaces_503_when_qdrant_fails(async_client: AsyncClient) -> None:
+    """
+    Qdrant errors map to 503 on POST /workspaces.
+    """
+
+    mock_qdrant = AsyncMock(spec=AsyncQdrantClient)
+    mock_qdrant.collection_exists = AsyncMock(side_effect=OSError("refused"))
+
+    async def _override_qdrant():
+        yield mock_qdrant
+
+    app.dependency_overrides[get_qdrant_client] = _override_qdrant
+    try:
+        response = await async_client.post("/workspaces", json={"workspace_id": "demo"})
+    finally:
+        app.dependency_overrides.pop(get_qdrant_client, None)
+
+    assert response.status_code == 503
+    assert "vector store" in response.json()["detail"].lower()
