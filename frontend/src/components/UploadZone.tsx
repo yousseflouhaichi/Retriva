@@ -3,6 +3,7 @@ import { Upload } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { extractFastApiDetail } from "@/lib/parseApiResponses";
 import { cn } from "@/lib/utils";
 
 export type IngestPhase = "idle" | "uploading" | "queued" | "processing" | "ready" | "failed";
@@ -58,15 +59,17 @@ export function UploadZone({ workspaceId, apiBaseUrl, compact = false, onIngestS
       try {
         const response = await fetch(url, { method: "POST", body: form });
         if (!response.ok) {
-          let message = `Upload failed (${response.status})`;
-          try {
-            const body = (await response.json()) as { detail?: string };
-            if (typeof body.detail === "string") {
-              message = body.detail;
+          const text = await response.text();
+          let raw: unknown = null;
+          if (text.length > 0) {
+            try {
+              raw = JSON.parse(text) as unknown;
+            } catch {
+              raw = null;
             }
-          } catch {
-            /* ignore */
           }
+          const detail = extractFastApiDetail(raw);
+          const message = detail ?? `Upload failed (${response.status})`;
           setUserError(message);
           setPhase("failed");
           return;

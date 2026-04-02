@@ -49,7 +49,7 @@ uv run arq backend.workers.ingestion_worker.WorkerSettings
 
 ### Try ingestion
 - Set `OPENAI_API_KEY` in `.env` (embeddings are required for indexing).
-- `POST /ingest/upload?company_id=demo` with multipart form file `file`
+- `POST /ingest/upload?company_id=demo` with multipart form file `file` (returns **409** if a document with the same filename already exists in that workspace)
 - Poll `GET /ingest/status/{job_id}` until `ready` (response includes `chunks_indexed` when using the JSON status format)
 
 ### Try streaming query

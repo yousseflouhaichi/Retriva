@@ -7,10 +7,13 @@ from uuid import uuid4
 from arq import create_pool
 from arq.connections import RedisSettings
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from qdrant_client import AsyncQdrantClient
 
 from backend.core.config import Settings, get_settings
+from backend.core.qdrant_client import get_qdrant_client
 from backend.models.schemas import IngestStatusResponse, IngestUploadResponse
 from backend.services.collections import company_collection_name
+from backend.services.document_index import indexed_document_name_exists
 
 router = APIRouter()
 
@@ -81,6 +84,7 @@ async def ingest_upload(
     company_id: str,
     file: UploadFile = File(...),
     settings: Settings = Depends(get_settings),
+    qdrant: AsyncQdrantClient = Depends(get_qdrant_client),
 ) -> IngestUploadResponse:
     """
     Accept a file upload and enqueue an ARQ ingestion job.
@@ -94,11 +98,33 @@ async def ingest_upload(
         except ValueError as exc:
             raise ValueError(str(exc)) from exc
 
+        raw_name = Path(file.filename or "upload").name
+        stripped_base = raw_name.strip()
+        safe_name = stripped_base if stripped_base else "upload"
+
+        try:
+            if await indexed_document_name_exists(company_id, qdrant, safe_name):
+                raise HTTPException(
+                    status_code=409,
+                    detail=(
+                        f"A document named {safe_name!r} already exists in this workspace. "
+                        "Delete it in the Documents panel or rename the file before uploading."
+                    ),
+                )
+        except HTTPException:
+            raise
+        except ValueError as exc:
+            raise ValueError(str(exc)) from exc
+        except Exception as exc:
+            raise HTTPException(
+                status_code=503,
+                detail="Could not verify whether this document already exists. Try again shortly.",
+            ) from exc
+
         job_id = uuid4().hex
         upload_dir = Path(settings.upload_dir)
         upload_dir.mkdir(parents=True, exist_ok=True)
 
-        safe_name = Path(file.filename or "upload").name
         dest = upload_dir / f"{job_id}__{safe_name}"
 
         content = await file.read()
@@ -117,6 +143,8 @@ async def ingest_upload(
             await redis.aclose()
 
         return IngestUploadResponse(job_id=job_id)
+    except HTTPException:
+        raise
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:

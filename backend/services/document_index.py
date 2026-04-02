@@ -10,10 +10,47 @@ from collections import defaultdict
 from datetime import datetime, timezone
 
 from qdrant_client import AsyncQdrantClient
+from qdrant_client.models import FieldCondition, Filter, MatchValue
 
 from backend.core.config import Settings
 from backend.models.schemas import DocumentIndexItem
 from backend.services.collections import company_collection_name
+
+
+async def indexed_document_name_exists(
+    company_id: str,
+    client: AsyncQdrantClient,
+    document_name: str,
+) -> bool:
+    """
+    Return True when the tenant collection has at least one point with this document_name.
+
+    Uses the same stripped exact match semantics as DELETE /documents and the document index.
+    """
+
+    stripped = document_name.strip()
+    if not stripped:
+        return False
+    collection = company_collection_name(company_id)
+    exists = await client.collection_exists(collection_name=collection)
+    if not exists:
+        return False
+    point_filter = Filter(
+        must=[
+            FieldCondition(
+                key="document_name",
+                match=MatchValue(value=stripped),
+            ),
+        ],
+    )
+    records, _next = await client.scroll(
+        collection_name=collection,
+        scroll_filter=point_filter,
+        limit=1,
+        with_payload=False,
+        with_vectors=False,
+    )
+    return len(records) > 0
 
 
 def _parse_indexed_at(raw: object) -> datetime | None:

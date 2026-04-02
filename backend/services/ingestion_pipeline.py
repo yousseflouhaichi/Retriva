@@ -19,6 +19,7 @@ from backend.core.config import Settings
 from backend.services.bm25_index import append_bm25_documents
 from backend.services.chunker import chunks_from_elements
 from backend.services.collections import company_safe_id, ensure_company_collection
+from backend.services.document_index import indexed_document_name_exists
 from backend.services.embedder import embed_texts
 from backend.services.parser import parse_document_to_elements
 
@@ -51,7 +52,13 @@ async def run_document_ingestion(
 
     client = AsyncQdrantClient(url=settings.qdrant_url)
     try:
+        doc_label = original_filename.strip()
         collection = await ensure_company_collection(client, settings, company_id)
+        if await indexed_document_name_exists(company_id, client, doc_label):
+            raise ValueError(
+                f"A document named {doc_label!r} already exists in this workspace. "
+                "Delete it or rename the file before uploading again."
+            )
         elements = await parse_document_to_elements(settings, file_path)
         chunks = chunks_from_elements(settings, elements)
         if not chunks:
@@ -67,7 +74,7 @@ async def run_document_ingestion(
         for chunk, vector in zip(chunks, vectors, strict=True):
             payload: dict[str, Any] = {
                 "workspace_id": company_id.strip(),
-                "document_name": original_filename,
+                "document_name": doc_label,
                 "page_number": chunk.page_number,
                 "chunk_type": chunk.chunk_type,
                 "parent_chunk_id": chunk.parent_chunk_id or "",

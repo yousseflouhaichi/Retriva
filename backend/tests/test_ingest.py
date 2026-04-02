@@ -8,12 +8,18 @@ from httpx import AsyncClient
 
 
 @pytest.mark.asyncio
+@patch("backend.routers.ingest.indexed_document_name_exists", new_callable=AsyncMock)
 @patch("backend.routers.ingest.create_pool", new_callable=AsyncMock)
-async def test_ingest_upload_returns_job_id(mock_create_pool: AsyncMock, async_client: AsyncClient) -> None:
+async def test_ingest_upload_returns_job_id(
+    mock_create_pool: AsyncMock,
+    mock_doc_exists: AsyncMock,
+    async_client: AsyncClient,
+) -> None:
     """
     Upload accepts a file, enqueues ARQ job, returns 202 with job_id when Redis pool works.
     """
 
+    mock_doc_exists.return_value = False
     mock_redis = AsyncMock()
     mock_redis.enqueue_job = AsyncMock()
     mock_redis.aclose = AsyncMock()
@@ -28,6 +34,30 @@ async def test_ingest_upload_returns_job_id(mock_create_pool: AsyncMock, async_c
     assert len(body["job_id"]) == 32
     mock_redis.enqueue_job.assert_awaited_once()
     mock_redis.aclose.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+@patch("backend.routers.ingest.indexed_document_name_exists", new_callable=AsyncMock)
+@patch("backend.routers.ingest.create_pool", new_callable=AsyncMock)
+async def test_ingest_upload_rejects_duplicate_filename(
+    mock_create_pool: AsyncMock,
+    mock_doc_exists: AsyncMock,
+    async_client: AsyncClient,
+) -> None:
+    """
+    When the workspace already indexes this filename, upload returns 409 and does not enqueue.
+    """
+
+    mock_doc_exists.return_value = True
+    mock_redis = AsyncMock()
+    mock_create_pool.return_value = mock_redis
+
+    files = {"file": ("dup.txt", b"x", "text/plain")}
+    response = await async_client.post("/ingest/upload?company_id=demo", files=files)
+
+    assert response.status_code == 409
+    assert "dup.txt" in response.json()["detail"]
+    mock_redis.enqueue_job.assert_not_awaited()
 
 
 @pytest.mark.asyncio
