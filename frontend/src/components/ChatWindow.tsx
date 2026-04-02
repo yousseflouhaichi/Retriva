@@ -1,4 +1,5 @@
-import { useCallback, useId, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { MessageSquare } from "lucide-react";
 
 import { MessageBubble } from "@/components/MessageBubble";
 import { SourceCard } from "@/components/SourceCard";
@@ -33,6 +34,18 @@ export function ChatWindow({
   const [draft, setDraft] = useState("");
   const [activeStreamId, setActiveStreamId] = useState<string | null>(null);
   const inputId = useId();
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const root = scrollRef.current;
+    if (!root) {
+      return;
+    }
+    root.scrollTo({
+      top: root.scrollHeight,
+      behavior: activeStreamId !== null ? "auto" : "smooth",
+    });
+  }, [messages, activeStreamId]);
 
   const send = useCallback(async () => {
     const text = draft.trim();
@@ -72,35 +85,62 @@ export function ChatWindow({
     );
   }, [apiBaseUrl, workspaceId, draft, postStream]);
 
-  const headerPad = compact ? "p-3 pb-2" : undefined;
-  const titleClass = compact ? "text-xs font-semibold uppercase tracking-wide text-muted-foreground" : "text-base font-medium";
-  const contentGap = compact ? "gap-2 p-3 pt-0" : "gap-3";
-  const scrollMinH = compact ? "min-h-[160px]" : "min-h-[200px]";
-  const scrollPad = compact ? "space-y-2 p-2" : "space-y-3 p-3";
+  const headerPad = compact ? "shrink-0 space-y-0.5 p-3 pb-2" : "shrink-0 space-y-1 pb-3 pt-1";
+  const titleClass = compact ? "text-xs font-semibold uppercase tracking-wide text-muted-foreground" : "text-base font-semibold tracking-tight";
+  const contentGap = compact ? "min-h-0 flex-1 gap-2 p-3 pt-0" : "min-h-0 flex-1 gap-3 p-4 pt-0";
+  const scrollPad = compact ? "space-y-3 px-3 py-3" : "space-y-4 px-4 py-4";
   const sourceGridGap = compact ? "gap-1.5" : "gap-2";
+
+  /** Fixed viewport height so the message list scrolls inside; input stays pinned below. */
+  const chatShellHeight = compact
+    ? "h-[clamp(300px,48vh,440px)] lg:h-[clamp(320px,50vh,460px)]"
+    : "h-[clamp(380px,58vh,640px)] lg:h-[clamp(400px,60vh,680px)]";
 
   return (
     <Card
       className={cn(
-        "flex min-h-0 flex-1 flex-col border-border/40 bg-card/80 shadow-none ring-1 ring-border/30",
-        compact ? "min-h-[360px]" : "min-h-[420px]",
+        "flex shrink-0 flex-col overflow-hidden border-border/40 bg-card/80 shadow-none ring-1 ring-border/30",
+        chatShellHeight,
       )}
     >
       <CardHeader className={headerPad}>
-        <CardTitle className={titleClass}>Chat</CardTitle>
+        <div className="flex items-center gap-2">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <MessageSquare className="h-4 w-4" aria-hidden />
+          </div>
+          <div>
+            <CardTitle className={titleClass}>Chat</CardTitle>
+            {!compact && (
+              <p className="text-xs text-muted-foreground">Scroll inside the panel to read earlier messages.</p>
+            )}
+          </div>
+        </div>
       </CardHeader>
-      <CardContent className={cn("flex flex-1 flex-col", contentGap)}>
+      <CardContent className={cn("flex flex-col", contentGap)}>
         <div
+          ref={scrollRef}
+          tabIndex={0}
           className={cn(
-            "flex-1 overflow-y-auto rounded-md bg-muted/25 ring-1 ring-border/30",
-            scrollMinH,
+            "min-h-0 flex-1 overflow-y-auto overflow-x-hidden rounded-xl bg-gradient-to-b from-muted/40 to-muted/20 shadow-inner ring-1 ring-border/20",
+            "scroll-smooth [scrollbar-gutter:stable]",
             scrollPad,
           )}
+          role="log"
+          aria-label="Conversation messages"
         >
           {messages.length === 0 && (
-            <p className={cn("text-center text-muted-foreground", compact ? "text-xs" : "text-sm")}>
-              Ask a question about your uploaded documents.
-            </p>
+            <div
+              className={cn(
+                "flex h-full min-h-[8rem] flex-col items-center justify-center gap-2 text-center text-muted-foreground",
+                compact ? "px-2 text-xs" : "px-4 text-sm",
+              )}
+            >
+              <MessageSquare className="h-10 w-10 opacity-25" strokeWidth={1.25} aria-hidden />
+              <p className="max-w-[240px] font-medium text-foreground/70">Start a conversation</p>
+              <p className="max-w-[280px] text-muted-foreground">
+                Ask questions about your workspace documents. Answers use retrieved context only.
+              </p>
+            </div>
           )}
           {messages.map((m) => (
             <div key={m.id} className={cn(compact ? "space-y-1.5" : "space-y-2")}>
@@ -134,22 +174,29 @@ export function ChatWindow({
           ))}
         </div>
         {showStreamingIndicator && activeStreamId !== null && (
-          <p className="text-xs text-muted-foreground" aria-live="polite">
-            Streaming response…
+          <p className="shrink-0 text-xs font-medium text-primary/90" aria-live="polite">
+            <span className="inline-flex items-center gap-1.5">
+              <span className="relative flex h-2 w-2">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary/40 opacity-75" />
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-primary" />
+              </span>
+              Streaming response…
+            </span>
           </p>
         )}
-        <div className={cn("flex flex-col sm:flex-row", compact ? "gap-1.5" : "gap-2")}>
-          <label className="sr-only" htmlFor={inputId}>
-            Message
-          </label>
-          <textarea
+        <div className={cn("shrink-0 rounded-lg bg-card/50 ring-1 ring-border/30", compact ? "p-1.5" : "p-2")}>
+          <div className={cn("flex flex-col sm:flex-row", compact ? "gap-1.5" : "gap-2")}>
+            <label className="sr-only" htmlFor={inputId}>
+              Message
+            </label>
+            <textarea
             id={inputId}
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             placeholder="Ask a question…"
             rows={compact ? 2 : 2}
             className={cn(
-              "min-h-[44px] flex-1 resize-y rounded-md border border-border/60 bg-background px-3 py-2 ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
+              "min-h-[44px] flex-1 resize-none rounded-md border border-border/60 bg-background px-3 py-2 ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
               compact ? "text-xs" : "text-sm",
             )}
             onKeyDown={(e) => {
@@ -158,19 +205,20 @@ export function ChatWindow({
                 void send();
               }
             }}
-          />
-          <div className={cn("flex", compact ? "gap-1.5" : "gap-2")}>
-            <Button
-              type="button"
-              size={compact ? "sm" : "default"}
-              onClick={() => void send()}
-              disabled={!draft.trim() || !workspaceId.trim()}
-            >
-              Send
-            </Button>
-            <Button type="button" variant="outline" size={compact ? "sm" : "default"} onClick={() => abort()}>
-              Stop
-            </Button>
+            />
+            <div className={cn("flex shrink-0", compact ? "gap-1.5" : "gap-2")}>
+              <Button
+                type="button"
+                size={compact ? "sm" : "default"}
+                onClick={() => void send()}
+                disabled={!draft.trim() || !workspaceId.trim()}
+              >
+                Send
+              </Button>
+              <Button type="button" variant="outline" size={compact ? "sm" : "default"} onClick={() => abort()}>
+                Stop
+              </Button>
+            </div>
           </div>
         </div>
       </CardContent>
