@@ -1,32 +1,38 @@
 # Multimodal RAG Platform
 
 ## What this is
-A production-grade multimodal RAG SaaS platform. Companies upload documents
-(PDFs, DOCX, images) and query them via a chat interface. Each company's data
-is fully isolated via `company_id` / workspace namespacing in Qdrant.
+A multimodal RAG-style application: workspaces upload documents, chunks are embedded and stored per tenant, and users query via chat with retrieval and generation. Data is isolated by `company_id` / workspace id in Qdrant and related Redis keys (BM25, workspace preferences).
 
-## Stack
-- Backend: FastAPI (async route handlers), Python 3.13, uv for packages
-- Task queue: ARQ + Redis, not FastAPI BackgroundTasks for ingestion
-- Vector DB: Qdrant namespaced per workspace / tenant
-- Retrieval: Hybrid search (dense + BM25) + RRF + Cohere reranking (see `retrieval` rules and config)
-- Query transformation: Multi-query rewriting + HyDE before retrieval (see query pipeline)
-- Embeddings: OpenAI `text-embedding-3-large`, 3072 dimensions (configurable via settings)
-- Parsing: Unstructured.io via Docker
-- **Multimodal**: image captioning / vision at ingestion is a **product target**; implement and document when added to the pipeline
-- Orchestration: LangGraph (or `backend/graphs`) for the query pipeline
-- Streaming: SSE (e.g. sse-starlette), no full-response buffering for chat
-- Frontend: React + Vite + Tailwind + shadcn-style UI components
+## Stack (as implemented)
+- **Backend:** FastAPI, async route handlers, Python 3.13, **uv** for dependencies
+- **Queue:** **ARQ** + Redis for ingestion (not FastAPI `BackgroundTasks`)
+- **Vectors:** Qdrant, one collection per normalized workspace id
+- **Lexical:** BM25 in Redis, keyed per tenant
+- **Parsing:** Unstructured.io over HTTP, typically via Docker Compose
+- **Chunking / embedding:** `backend/services/chunker.py` and `embedder.py`, tuned via `core/config.py`
+- **Query path:** graph under `backend/graphs/` (e.g. `query_pipeline.py`): transform, hybrid retrieval, rerank, generate; **SSE** via `sse-starlette` (`EventSourceResponse` on `/query/stream`)
+- **Frontend:** React, Vite, Tailwind, shadcn-style UI components
+
+## Product targets (add when implemented; keep this file in sync)
+- **Vision / captioning at ingest** for images inside documents
+- **Richer chunk payloads** (e.g. image paths, section headers) when retrieval and UI need them
+- **Finer ingest progress** (phase or percent) while keeping Redis job keys as the source of status
 
 ## Non-negotiables
-- Never use FastAPI BackgroundTasks for ingestion; use ARQ
-- Never query across tenant collections in Qdrant
-- Never skip query transformation before retrieval
-- Never buffer the full LLM answer for streaming endpoints; stream via SSE
-- Never use pip; use uv
-- Pydantic v2 only in Python
-- All runtime configuration through `core/config.py` / `get_settings()`, not scattered `os.environ` reads
-- **FastAPI route handlers** must be `async`; small pure helpers may be sync when they do not block the event loop
+- **Ingestion** runs in the **ARQ worker** after enqueue, not inside the upload request lifecycle
+- **No cross-tenant reads** in Qdrant; do not mix BM25 or prefs keys across workspaces
+- **Query transformation** before retrieval; do not use only the raw user string as the retrieval input to Qdrant
+- **Streaming** for chat: do not buffer the full model reply before sending events to the client
+- **uv**, not pip, for Python packages
+- **Pydantic v2** for API models
+- **Configuration** via `core/config.py` / `get_settings()`; do not read `os.environ` outside config
+- **FastAPI route handlers** are `async`; offload blocking work with `asyncio.to_thread` or keep it in the worker
+
+## Engineering defaults
+- **Routers** stay thin; **services** hold business logic; **workers** own long-running jobs
+- **Types:** prefer precise Python types in core logic; use `Any` sparingly at boundaries (e.g. raw JSON)
+- **Errors:** map to safe HTTP `detail` for clients; log with context, never secrets
+- **Tests** on critical paths (ingest, workspaces, documents, query) when behavior changes
 
 ## Type hints
-Required on public Python APIs and non-trivial functions; use precise types in core logic. Prefer narrow types over `Any` except at clear boundaries (e.g. raw JSON).
+Use type hints on public Python APIs and non-trivial functions. Prefer narrow types over `Any` except at clear boundaries (e.g. parsed JSON).
