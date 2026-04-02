@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from types import SimpleNamespace
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from httpx import AsyncClient
@@ -247,3 +247,83 @@ async def test_get_documents_http_503_when_scroll_fails(async_client: AsyncClien
         app.dependency_overrides.pop(get_qdrant_client, None)
 
     assert response.status_code == 503
+
+
+@pytest.mark.asyncio
+async def test_delete_document_http_success(async_client: AsyncClient) -> None:
+    """
+    DELETE /documents calls Qdrant delete with a document_name filter and rebuilds BM25.
+    """
+
+    mock_client = AsyncMock(spec=AsyncQdrantClient)
+    mock_client.collection_exists = AsyncMock(return_value=True)
+    mock_client.delete = AsyncMock()
+
+    async def _override_qdrant():
+        yield mock_client
+
+    with patch(
+        "backend.services.document_delete.replace_bm25_corpus_from_qdrant",
+        new_callable=AsyncMock,
+    ) as mock_rebuild:
+        app.dependency_overrides[get_qdrant_client] = _override_qdrant
+        try:
+            response = await async_client.delete(
+                "/documents",
+                params={"company_id": "demo", "document_name": "a.pdf"},
+            )
+        finally:
+            app.dependency_overrides.pop(get_qdrant_client, None)
+
+    assert response.status_code == 200
+    assert response.json()["document_name"] == "a.pdf"
+    assert response.json()["deleted"] is True
+    mock_client.delete.assert_called_once()
+    mock_rebuild.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_delete_document_http_404_when_collection_missing(async_client: AsyncClient) -> None:
+    """
+    Missing tenant collection returns 404.
+    """
+
+    mock_client = AsyncMock(spec=AsyncQdrantClient)
+    mock_client.collection_exists = AsyncMock(return_value=False)
+
+    async def _override_qdrant():
+        yield mock_client
+
+    app.dependency_overrides[get_qdrant_client] = _override_qdrant
+    try:
+        response = await async_client.delete(
+            "/documents",
+            params={"company_id": "demo", "document_name": "a.pdf"},
+        )
+    finally:
+        app.dependency_overrides.pop(get_qdrant_client, None)
+
+    assert response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_delete_document_http_400_invalid_company(async_client: AsyncClient) -> None:
+    """
+    Invalid company_id returns 400.
+    """
+
+    mock_client = AsyncMock(spec=AsyncQdrantClient)
+
+    async def _override_qdrant():
+        yield mock_client
+
+    app.dependency_overrides[get_qdrant_client] = _override_qdrant
+    try:
+        response = await async_client.delete(
+            "/documents",
+            params={"company_id": "###", "document_name": "a.pdf"},
+        )
+    finally:
+        app.dependency_overrides.pop(get_qdrant_client, None)
+
+    assert response.status_code == 400

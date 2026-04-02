@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { ChevronLeft, ChevronRight, Files } from "lucide-react";
+import { ChevronLeft, ChevronRight, Files, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -39,21 +39,23 @@ export function DocumentsPanel({ workspaceId, apiBaseUrl, compact = false, refre
   const [data, setData] = useState<DocumentIndexResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [deletingName, setDeletingName] = useState<string | null>(null);
 
-  const fetchPage = useCallback(async () => {
+  const fetchPage = useCallback(async (pageOffset?: number) => {
     if (!workspaceId.trim()) {
       setLoading(false);
       setData(null);
       setError(null);
       return;
     }
+    const effectiveOffset = pageOffset !== undefined ? pageOffset : offset;
     setLoading(true);
     setError(null);
     try {
       const params = new URLSearchParams({
         company_id: workspaceId.trim(),
         limit: String(PAGE_SIZE),
-        offset: String(offset),
+        offset: String(effectiveOffset),
       });
       const response = await fetch(`${apiBaseUrl}/documents?${params.toString()}`);
       const text = await response.text();
@@ -93,6 +95,58 @@ export function DocumentsPanel({ workspaceId, apiBaseUrl, compact = false, refre
       setLoading(false);
     }
   }, [apiBaseUrl, workspaceId, offset]);
+
+  const deleteDocument = useCallback(
+    async (documentName: string) => {
+      if (!workspaceId.trim() || !documentName.trim()) {
+        return;
+      }
+      if (
+        !window.confirm(
+          `Remove "${documentName}" from this workspace? All chunks for this file will be deleted. This cannot be undone.`,
+        )
+      ) {
+        return;
+      }
+      setDeletingName(documentName);
+      setError(null);
+      try {
+        const params = new URLSearchParams({
+          company_id: workspaceId.trim(),
+          document_name: documentName,
+        });
+        const response = await fetch(`${apiBaseUrl}/documents?${params.toString()}`, {
+          method: "DELETE",
+        });
+        const text = await response.text();
+        let raw: unknown = null;
+        if (text.length > 0) {
+          try {
+            raw = JSON.parse(text) as unknown;
+          } catch {
+            raw = null;
+          }
+        }
+        if (!response.ok) {
+          const detail = extractFastApiDetail(raw);
+          setError(detail ?? `Delete failed (${response.status})`);
+          return;
+        }
+        const resetToFirstPage =
+          offset > 0 && data !== null && data.documents.length <= 1;
+        if (resetToFirstPage) {
+          setOffset(0);
+        }
+        await fetchPage(resetToFirstPage ? 0 : undefined);
+      } catch (err) {
+        const detail = err instanceof Error ? err.message : "Unknown error";
+        setError(`Could not delete document (${detail}).`);
+      } finally {
+        setDeletingName(null);
+      }
+    },
+    [apiBaseUrl, workspaceId, offset, data, fetchPage],
+  );
 
   useEffect(() => {
     setOffset(0);
@@ -136,6 +190,9 @@ export function DocumentsPanel({ workspaceId, apiBaseUrl, compact = false, refre
                   <th className={cn("px-2 py-1.5 font-medium", compact && "py-1")}>Name</th>
                   <th className={cn("px-2 py-1.5 font-medium", compact && "py-1")}>Chunks</th>
                   <th className={cn("hidden px-2 py-1.5 font-medium sm:table-cell", compact && "py-1")}>Indexed</th>
+                  <th className={cn("w-10 px-2 py-1.5 text-right font-medium", compact && "py-1")} scope="col">
+                    <span className="sr-only">Actions</span>
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -147,6 +204,19 @@ export function DocumentsPanel({ workspaceId, apiBaseUrl, compact = false, refre
                     <td className={cn("whitespace-nowrap px-2 py-1.5 text-muted-foreground", compact && "py-1")}>{row.chunk_count}</td>
                     <td className={cn("hidden whitespace-nowrap px-2 py-1.5 text-muted-foreground sm:table-cell", compact && "py-1")}>
                       {formatIndexedAt(row.last_indexed_at)}
+                    </td>
+                    <td className={cn("px-2 py-1.5 text-right", compact && "py-1")}>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 w-7 p-0 text-muted-foreground hover:text-red-600"
+                        aria-label={`Delete ${row.document_name}`}
+                        disabled={loading || deletingName !== null}
+                        onClick={() => void deleteDocument(row.document_name)}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" aria-hidden />
+                      </Button>
                     </td>
                   </tr>
                 ))}

@@ -1,44 +1,17 @@
-const STORAGE_EXTRAS = "rag-workspace-extras";
 const STORAGE_ACTIVE_WORKSPACE = "rag-active-workspace-id";
 /** Legacy key; read once then migrate to STORAGE_ACTIVE_WORKSPACE */
 const LEGACY_ACTIVE_WORKSPACE = "rag-company-id";
-
-function isValidWorkspaceToken(value: unknown): value is string {
-  return typeof value === "string" && value.length > 0;
-}
+/** Removed from active use; cleared on load so list matches Qdrant only */
+const LEGACY_EXTRAS_KEY = "rag-workspace-extras";
 
 /**
- * User-added workspace ids (may not yet have a Qdrant collection) persisted across reloads.
+ * Drop legacy extras list so workspace ids are not merged from stale localStorage.
  */
-export function readExtraWorkspaceIds(): string[] {
+export function clearLegacyWorkspaceExtras(): void {
   try {
-    const raw = localStorage.getItem(STORAGE_EXTRAS);
-    if (!raw) {
-      return [];
-    }
-    const parsed = JSON.parse(raw) as unknown;
-    if (!Array.isArray(parsed)) {
-      return [];
-    }
-    return parsed.filter(isValidWorkspaceToken);
+    localStorage.removeItem(LEGACY_EXTRAS_KEY);
   } catch {
-    return [];
-  }
-}
-
-export function appendExtraWorkspaceId(id: string): void {
-  const trimmed = id.trim();
-  if (!trimmed) {
-    return;
-  }
-  const prev = readExtraWorkspaceIds();
-  if (prev.includes(trimmed)) {
-    return;
-  }
-  try {
-    localStorage.setItem(STORAGE_EXTRAS, JSON.stringify([...prev, trimmed]));
-  } catch {
-    /* quota or private mode */
+    /* ignore */
   }
 }
 
@@ -73,8 +46,4 @@ export function clearLastWorkspaceId(): void {
   } catch {
     /* ignore */
   }
-}
-
-export function mergeWorkspaceIds(fromApi: string[], extras: string[]): string[] {
-  return [...new Set([...fromApi, ...extras])].sort((a, b) => a.localeCompare(b));
 }

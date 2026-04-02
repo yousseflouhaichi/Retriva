@@ -26,6 +26,7 @@ Health check:
 Workspaces (for the UI dropdown): Qdrant collections whose names are valid workspace ids (letters, digits, `-`, `_`) are listed by
 - `GET /workspaces` (returns JSON `{"workspaces": ["id", ...]}` sorted). Legacy collections named `company_{id}` still appear as `id`.
 - `POST /workspaces` with JSON `{"workspace_id": "your-id"}` creates an empty Qdrant collection when missing (same id rules as ingest). Response: `{"workspace_id": "...", "created": true|false}`.
+- `DELETE /workspaces/{workspace_id}` removes the Qdrant collection and related Redis keys (BM25 corpus, workspace preferences). Returns **204** when done (idempotent if the collection is already gone).
 
 New data is stored under the plain id collection (for example `demo`, not `company_demo`). If you still have vectors only under `company_{id}`, migrate or re-ingest into the plain-named collection.
 
@@ -34,6 +35,7 @@ System status (dependency checks, non-secret model metadata, and ARQ ingestion q
 
 Document index (per workspace, from Qdrant chunk payloads; may truncate on very large corpora):
 - `GET /documents?company_id=demo&limit=100&offset=0` (each row includes `chunk_count` and optional `last_indexed_at` for chunks ingested after this release)
+- `DELETE /documents?company_id=demo&document_name=...` deletes all points whose payload `document_name` matches exactly, then rebuilds the Redis BM25 corpus from Qdrant (capped like ingest).
 
 Workspace UI preferences (per `company_id`, stored in Redis; no auth yet):
 - `GET /workspace/preferences?company_id=demo`

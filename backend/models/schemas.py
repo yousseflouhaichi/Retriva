@@ -138,6 +138,15 @@ class DocumentIndexResponse(BaseModel):
     offset: int = Field(ge=0, description="Documents skipped from the sorted list")
 
 
+class DocumentDeleteResponse(BaseModel):
+    """
+    Confirmation after removing all chunks for one document name in the tenant collection.
+    """
+
+    document_name: str
+    deleted: bool = Field(default=True, description="True when the delete operation completed")
+
+
 class WorkspacePreferences(BaseModel):
     """
     Client-controlled UI preferences for a workspace (stored server-side per company_id).

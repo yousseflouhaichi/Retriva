@@ -5,7 +5,7 @@ Tests for Qdrant-backed workspace listing.
 from __future__ import annotations
 
 from types import SimpleNamespace
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from httpx import AsyncClient
@@ -182,3 +182,77 @@ async def test_post_workspaces_503_when_qdrant_fails(async_client: AsyncClient) 
 
     assert response.status_code == 503
     assert "vector store" in response.json()["detail"].lower()
+
+
+@pytest.mark.asyncio
+async def test_delete_workspace_http_204(async_client: AsyncClient) -> None:
+    """
+    DELETE /workspaces/{id} removes the collection and clears Redis sidecars.
+    """
+
+    mock_qdrant = AsyncMock(spec=AsyncQdrantClient)
+    mock_qdrant.collection_exists = AsyncMock(return_value=True)
+    mock_qdrant.delete_collection = AsyncMock()
+    mock_redis = AsyncMock()
+    mock_redis.delete = AsyncMock(return_value=1)
+    mock_redis.aclose = AsyncMock()
+
+    async def _override_qdrant():
+        yield mock_qdrant
+
+    with patch("backend.services.collections.redis_lib.from_url", return_value=mock_redis):
+        app.dependency_overrides[get_qdrant_client] = _override_qdrant
+        try:
+            response = await async_client.delete("/workspaces/demo")
+        finally:
+            app.dependency_overrides.pop(get_qdrant_client, None)
+
+    assert response.status_code == 204
+    mock_qdrant.delete_collection.assert_called_once_with(collection_name="demo")
+    assert mock_redis.delete.await_count == 2
+
+
+@pytest.mark.asyncio
+async def test_delete_workspace_skips_qdrant_when_collection_missing(async_client: AsyncClient) -> None:
+    """
+    DELETE still returns 204 and clears Redis when the collection is already gone.
+    """
+
+    mock_qdrant = AsyncMock(spec=AsyncQdrantClient)
+    mock_qdrant.collection_exists = AsyncMock(return_value=False)
+    mock_redis = AsyncMock()
+    mock_redis.delete = AsyncMock(return_value=0)
+    mock_redis.aclose = AsyncMock()
+
+    async def _override_qdrant():
+        yield mock_qdrant
+
+    with patch("backend.services.collections.redis_lib.from_url", return_value=mock_redis):
+        app.dependency_overrides[get_qdrant_client] = _override_qdrant
+        try:
+            response = await async_client.delete("/workspaces/demo")
+        finally:
+            app.dependency_overrides.pop(get_qdrant_client, None)
+
+    assert response.status_code == 204
+    mock_qdrant.delete_collection.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_delete_workspace_http_400_invalid_id(async_client: AsyncClient) -> None:
+    """
+    Invalid workspace id in path returns 400.
+    """
+
+    mock_qdrant = AsyncMock(spec=AsyncQdrantClient)
+
+    async def _override_qdrant():
+        yield mock_qdrant
+
+    app.dependency_overrides[get_qdrant_client] = _override_qdrant
+    try:
+        response = await async_client.delete("/workspaces/!!!")
+    finally:
+        app.dependency_overrides.pop(get_qdrant_client, None)
+
+    assert response.status_code == 400

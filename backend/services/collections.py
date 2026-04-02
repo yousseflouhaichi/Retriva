@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import re
 
+import redis.asyncio as redis_lib
 from qdrant_client import AsyncQdrantClient
 from qdrant_client.models import Distance, VectorParams
 
@@ -154,3 +155,35 @@ async def ensure_workspace_collection(
     existed_before = await client.collection_exists(collection_name=name)
     await ensure_company_collection(client, settings, stripped)
     return name, not existed_before
+
+
+_WORKSPACE_PREFS_KEY_PREFIX = "workspace:prefs:"
+
+
+async def delete_workspace_and_sidecars(
+    settings: Settings,
+    raw_workspace_id: str,
+    client: AsyncQdrantClient,
+) -> None:
+    """
+    Drop the Qdrant collection for a workspace and remove Redis BM25 and preferences keys.
+
+    Args:
+        settings: Redis URL from configuration.
+        raw_workspace_id: Workspace id from the API path or body.
+        client: Async Qdrant client.
+
+    Raises:
+        ValueError: If workspace id is invalid for collection naming.
+    """
+
+    name = company_collection_name(raw_workspace_id)
+    safe = company_safe_id(raw_workspace_id)
+    if await client.collection_exists(collection_name=name):
+        await client.delete_collection(collection_name=name)
+    redis_client = redis_lib.from_url(settings.redis_url, decode_responses=True)
+    try:
+        await redis_client.delete(f"bm25:corpus:{safe}")
+        await redis_client.delete(f"{_WORKSPACE_PREFS_KEY_PREFIX}{safe}")
+    finally:
+        await redis_client.aclose()

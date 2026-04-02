@@ -10,6 +10,7 @@ import json
 from typing import Any
 
 import redis.asyncio as redis
+from qdrant_client import AsyncQdrantClient
 
 from backend.core.config import Settings
 
@@ -75,3 +76,56 @@ async def load_bm25_corpus(
         except (json.JSONDecodeError, TypeError):
             continue
     return ids, texts
+
+
+async def replace_bm25_corpus_from_qdrant(
+    settings: Settings,
+    company_safe_id: str,
+    qdrant: AsyncQdrantClient,
+    collection_name: str,
+) -> None:
+    """
+    Rebuild the Redis BM25 list from Qdrant payloads, capped at bm25_max_corpus_documents.
+
+    Used after point deletes so lexical retrieval matches dense vectors.
+    """
+
+    cap = max(1, settings.bm25_max_corpus_documents)
+    batch = max(1, settings.document_list_scroll_batch_size)
+    pairs: list[tuple[str, str]] = []
+    scroll_offset: str | int | None = None
+    while len(pairs) < cap:
+        page_limit = min(batch, cap - len(pairs))
+        if page_limit <= 0:
+            break
+        records, next_offset = await qdrant.scroll(
+            collection_name=collection_name,
+            limit=page_limit,
+            offset=scroll_offset,
+            with_payload=True,
+            with_vectors=False,
+        )
+        if not records:
+            break
+        for record in records:
+            if len(pairs) >= cap:
+                break
+            payload = record.payload or {}
+            pid = str(record.id)
+            text = str(payload.get("text", ""))
+            if pid and text.strip():
+                pairs.append((pid, text))
+        scroll_offset = next_offset
+        if scroll_offset is None:
+            break
+
+    redis_client = redis.from_url(settings.redis_url, decode_responses=True)
+    try:
+        key = _bm25_redis_key(company_safe_id)
+        await redis_client.delete(key)
+        if pairs:
+            redis_batch = max(1, min(512, len(pairs)))
+            for start in range(0, len(pairs), redis_batch):
+                await append_bm25_documents(redis_client, company_safe_id, pairs[start : start + redis_batch])
+    finally:
+        await redis_client.aclose()

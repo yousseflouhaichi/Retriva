@@ -1,12 +1,15 @@
 from __future__ import annotations
 
+from typing import Annotated
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from qdrant_client import AsyncQdrantClient
 
 from backend.core.config import Settings, get_settings
 from backend.core.qdrant_client import get_qdrant_client
-from backend.models.schemas import DocumentIndexResponse
+from backend.models.schemas import DocumentDeleteResponse, DocumentIndexResponse
 from backend.services.collections import company_collection_name
+from backend.services.document_delete import delete_document_by_name
 from backend.services.document_index import list_indexed_documents_for_company
 
 router = APIRouter()
@@ -64,3 +67,41 @@ async def list_company_documents(
         limit=used_limit,
         offset=used_offset,
     )
+
+
+@router.delete("/documents", response_model=DocumentDeleteResponse)
+async def delete_company_document(
+    company_id: Annotated[str, Query(min_length=1)],
+    document_name: Annotated[str, Query(min_length=1)],
+    qdrant: Annotated[AsyncQdrantClient, Depends(get_qdrant_client)],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> DocumentDeleteResponse:
+    """
+    Delete all vector points for one document_name in the tenant collection and rebuild BM25.
+    """
+
+    stripped_company = company_id.strip()
+    stripped_doc = document_name.strip()
+    if not stripped_company:
+        raise HTTPException(status_code=400, detail="company_id is required") from None
+    if not stripped_doc:
+        raise HTTPException(status_code=400, detail="document_name is required") from None
+    try:
+        company_collection_name(stripped_company)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    try:
+        await delete_document_by_name(settings, stripped_company, stripped_doc, qdrant)
+    except ValueError as exc:
+        message = str(exc)
+        if "not found" in message.lower():
+            raise HTTPException(status_code=404, detail=message) from exc
+        raise HTTPException(status_code=400, detail=message) from exc
+    except Exception:
+        raise HTTPException(
+            status_code=503,
+            detail="Could not delete document from the vector store",
+        ) from None
+
+    return DocumentDeleteResponse(document_name=stripped_doc, deleted=True)

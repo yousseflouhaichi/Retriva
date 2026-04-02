@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import { ChevronDown, Plus } from "lucide-react";
+import { ChevronDown, Plus, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,7 +12,10 @@ export interface WorkspaceSelectorProps {
   value: string;
   onChange: (workspaceId: string) => void;
   workspaces: string[];
-  onAddWorkspace: (workspaceId: string) => void;
+  /** Called after POST /workspaces succeeds; may be async (refetch list). */
+  onAddWorkspace: (workspaceId: string) => void | Promise<void>;
+  /** Refetch GET /workspaces after deleting a workspace. */
+  onRefreshWorkspaces: () => Promise<boolean>;
   /** API base URL; used to POST /workspaces so Qdrant gets an empty collection immediately. */
   apiBaseUrl: string;
   compact?: boolean;
@@ -39,6 +42,7 @@ export function WorkspaceSelector({
   onChange,
   workspaces,
   onAddWorkspace,
+  onRefreshWorkspaces,
   apiBaseUrl,
   compact = false,
 }: WorkspaceSelectorProps) {
@@ -46,6 +50,7 @@ export function WorkspaceSelector({
   const [draft, setDraft] = useState("");
   const [addError, setAddError] = useState<string | null>(null);
   const [addSubmitting, setAddSubmitting] = useState(false);
+  const [deleteWorkspaceSubmitting, setDeleteWorkspaceSubmitting] = useState(false);
   const draftInputRef = useRef<HTMLInputElement>(null);
 
   const selectValue = useMemo(() => {
@@ -128,8 +133,18 @@ export function WorkspaceSelector({
         setAddError(message);
         return;
       }
-      onAddWorkspace(trimmed);
-      onChange(trimmed);
+      let data: { workspace_id?: string } = {};
+      try {
+        data = (await response.json()) as { workspace_id?: string };
+      } catch {
+        /* empty body */
+      }
+      const wid =
+        typeof data.workspace_id === "string" && data.workspace_id.trim() !== ""
+          ? data.workspace_id.trim()
+          : trimmed;
+      onChange(wid);
+      await Promise.resolve(onAddWorkspace(wid));
       setAddOpen(false);
     } catch {
       setAddError("Could not reach the API. Check the server and your network.");
@@ -144,6 +159,47 @@ export function WorkspaceSelector({
   );
 
   const plusIconClass = compact ? "h-3.5 w-3.5" : "h-4 w-4";
+
+  const canDeleteWorkspace =
+    value.trim() !== "" && workspaces.includes(value.trim()) && workspaces.length > 0;
+
+  const handleDeleteWorkspace = async () => {
+    const wid = value.trim();
+    if (!wid || !canDeleteWorkspace) {
+      return;
+    }
+    if (
+      !window.confirm(
+        `Delete workspace "${wid}"? This removes the Qdrant collection, all documents, and workspace settings. This cannot be undone.`,
+      )
+    ) {
+      return;
+    }
+    setDeleteWorkspaceSubmitting(true);
+    try {
+      const response = await fetch(`${apiBaseUrl}/workspaces/${encodeURIComponent(wid)}`, {
+        method: "DELETE",
+      });
+      if (!response.ok) {
+        let message = `Request failed (${response.status})`;
+        try {
+          const body = (await response.json()) as { detail?: unknown };
+          if (typeof body.detail === "string") {
+            message = body.detail;
+          }
+        } catch {
+          /* ignore */
+        }
+        window.alert(message);
+        return;
+      }
+      await onRefreshWorkspaces();
+    } catch {
+      window.alert("Could not reach the API. Check the server and your network.");
+    } finally {
+      setDeleteWorkspaceSubmitting(false);
+    }
+  };
 
   return (
     <div className={cn(compact ? "space-y-0.5" : "space-y-1")}>
@@ -194,6 +250,20 @@ export function WorkspaceSelector({
             </div>
           )}
         </div>
+
+        {canDeleteWorkspace && (
+          <Button
+            type="button"
+            variant="outline"
+            className={addButtonClass}
+            aria-label="Delete workspace"
+            title="Delete workspace"
+            disabled={deleteWorkspaceSubmitting}
+            onClick={() => void handleDeleteWorkspace()}
+          >
+            <Trash2 className={plusIconClass} aria-hidden />
+          </Button>
+        )}
 
         <Popover open={addOpen} onOpenChange={setAddOpen}>
           <PopoverTrigger asChild>

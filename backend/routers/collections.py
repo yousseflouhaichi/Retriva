@@ -13,7 +13,11 @@ from backend.models.schemas import (
     WorkspaceEnsureResponse,
     WorkspacesListResponse,
 )
-from backend.services.collections import ensure_workspace_collection, list_tenant_workspace_ids
+from backend.services.collections import (
+    delete_workspace_and_sidecars,
+    ensure_workspace_collection,
+    list_tenant_workspace_ids,
+)
 
 router = APIRouter()
 
@@ -65,3 +69,24 @@ async def ensure_workspace(
             detail="Could not create workspace collection in the vector store",
         ) from None
     return WorkspaceEnsureResponse(workspace_id=name, created=created)
+
+
+@router.delete("/workspaces/{workspace_id}", status_code=204)
+async def delete_workspace(
+    workspace_id: str,
+    qdrant: Annotated[AsyncQdrantClient, Depends(get_qdrant_client)],
+) -> None:
+    """
+    Remove the workspace Qdrant collection and related Redis keys (BM25 corpus, UI prefs).
+    """
+
+    settings = get_settings()
+    try:
+        await delete_workspace_and_sidecars(settings, workspace_id, qdrant)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception:
+        raise HTTPException(
+            status_code=503,
+            detail="Could not delete workspace from the vector store",
+        ) from None

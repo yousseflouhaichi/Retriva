@@ -8,11 +8,9 @@ import { WorkspacePreferencesBar } from "@/components/WorkspacePreferencesBar";
 import { WorkspaceSelector } from "@/components/WorkspaceSelector";
 import { useWorkspacePreferences } from "@/hooks/useWorkspacePreferences";
 import {
-  appendExtraWorkspaceId,
   clearLastWorkspaceId,
-  mergeWorkspaceIds,
+  clearLegacyWorkspaceExtras,
   persistLastWorkspaceId,
-  readExtraWorkspaceIds,
   readLastWorkspaceId,
 } from "@/lib/workspacesStorage";
 import { getApiBaseUrl } from "@/lib/utils";
@@ -29,6 +27,7 @@ export default function App() {
   const [workspaces, setWorkspaces] = useState<string[]>([]);
   const [workspaceId, setWorkspaceId] = useState("");
   const [workspacesReady, setWorkspacesReady] = useState(false);
+  const [workspacesLoadError, setWorkspacesLoadError] = useState<string | null>(null);
   const [documentsRefreshToken, setDocumentsRefreshToken] = useState(0);
 
   const { preferences, preferencesLoading, preferencesError, patchPreferences } = useWorkspacePreferences(
@@ -42,60 +41,75 @@ export default function App() {
     setDocumentsRefreshToken((previous) => previous + 1);
   }, []);
 
+  const applyWorkspacesList = useCallback((fromApi: string[]) => {
+    const sorted = [...new Set(fromApi)].sort((a, b) => a.localeCompare(b));
+    setWorkspaces(sorted);
+    if (sorted.length === 0) {
+      setWorkspaceId("");
+      clearLastWorkspaceId();
+    } else if (sorted.length === 1) {
+      const only = sorted[0];
+      if (only !== undefined) {
+        setWorkspaceId(only);
+        persistLastWorkspaceId(only);
+      }
+    } else {
+      const last = readLastWorkspaceId();
+      if (last && sorted.includes(last)) {
+        setWorkspaceId(last);
+      } else {
+        setWorkspaceId("");
+        clearLastWorkspaceId();
+      }
+    }
+  }, []);
+
+  const refreshWorkspaces = useCallback(async (): Promise<boolean> => {
+    if (!apiBase) {
+      return false;
+    }
+    try {
+      const response = await fetch(`${apiBase}/workspaces`);
+      if (!response.ok) {
+        setWorkspacesLoadError(`Could not load workspaces (${response.status}).`);
+        setWorkspaces([]);
+        setWorkspaceId("");
+        clearLastWorkspaceId();
+        return false;
+      }
+      const payload = (await response.json()) as { workspaces?: unknown };
+      const raw = payload.workspaces;
+      const fromApi = Array.isArray(raw)
+        ? raw.filter((item): item is string => typeof item === "string" && item.length > 0)
+        : [];
+      setWorkspacesLoadError(null);
+      applyWorkspacesList(fromApi);
+      return true;
+    } catch {
+      setWorkspacesLoadError("Could not reach the API to list workspaces.");
+      setWorkspaces([]);
+      setWorkspaceId("");
+      clearLastWorkspaceId();
+      return false;
+    }
+  }, [apiBase, applyWorkspacesList]);
+
   useEffect(() => {
     if (!apiBase) {
       return;
     }
+    clearLegacyWorkspaceExtras();
     let cancelled = false;
-    const extras = readExtraWorkspaceIds();
-
     void (async () => {
-      let fromApi: string[] = [];
-      try {
-        const response = await fetch(`${apiBase}/workspaces`);
-        if (response.ok) {
-          const payload = (await response.json()) as { workspaces?: unknown };
-          const raw = payload.workspaces;
-          if (Array.isArray(raw)) {
-            fromApi = raw.filter((item): item is string => typeof item === "string" && item.length > 0);
-          }
-        }
-      } catch {
-        /* offline or CORS; fall back to extras only */
+      await refreshWorkspaces();
+      if (!cancelled) {
+        setWorkspacesReady(true);
       }
-
-      if (cancelled) {
-        return;
-      }
-
-      const merged = mergeWorkspaceIds(fromApi, extras);
-      setWorkspaces(merged);
-
-      if (merged.length === 0) {
-        setWorkspaceId("");
-        clearLastWorkspaceId();
-      } else if (merged.length === 1) {
-        const only = merged[0];
-        if (only !== undefined) {
-          setWorkspaceId(only);
-          persistLastWorkspaceId(only);
-        }
-      } else {
-        const last = readLastWorkspaceId();
-        if (last && merged.includes(last)) {
-          setWorkspaceId(last);
-        } else {
-          setWorkspaceId("");
-          clearLastWorkspaceId();
-        }
-      }
-      setWorkspacesReady(true);
     })();
-
     return () => {
       cancelled = true;
     };
-  }, [apiBase]);
+  }, [apiBase, refreshWorkspaces]);
 
   const handleWorkspaceChange = useCallback((id: string) => {
     setWorkspaceId(id);
@@ -103,12 +117,11 @@ export default function App() {
   }, []);
 
   const handleAddWorkspace = useCallback(
-    (id: string) => {
-      appendExtraWorkspaceId(id);
-      setWorkspaces((previous) => mergeWorkspaceIds(previous, [id]));
+    async (id: string) => {
       handleWorkspaceChange(id);
+      await refreshWorkspaces();
     },
-    [handleWorkspaceChange],
+    [handleWorkspaceChange, refreshWorkspaces],
   );
 
   if (apiBase === null) {
@@ -147,11 +160,17 @@ export default function App() {
               {preferencesError}
             </p>
           )}
+          {workspacesLoadError !== null && (
+            <p className="text-xs text-red-600 dark:text-red-400" role="alert">
+              {workspacesLoadError}
+            </p>
+          )}
           <WorkspaceSelector
             value={workspaceId}
             onChange={handleWorkspaceChange}
             workspaces={workspaces}
             onAddWorkspace={handleAddWorkspace}
+            onRefreshWorkspaces={refreshWorkspaces}
             apiBaseUrl={apiBase}
             compact={compactLayout}
           />
