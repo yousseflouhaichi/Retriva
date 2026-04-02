@@ -17,17 +17,17 @@ from backend.services.collections import list_tenant_workspace_ids
 
 
 @pytest.mark.asyncio
-async def test_list_tenant_workspace_ids_filters_company_prefix() -> None:
+async def test_list_tenant_workspace_ids_plain_and_legacy_names() -> None:
     """
-    Only company_* collections become workspace ids; names are sorted and unique.
+    Plain safe collection names and legacy company_* map to workspace ids; invalid names skipped.
     """
 
     client = AsyncMock(spec=AsyncQdrantClient)
     client.get_collections = AsyncMock(
         return_value=SimpleNamespace(
             collections=[
-                SimpleNamespace(name="company_zebra"),
-                SimpleNamespace(name="other"),
+                SimpleNamespace(name="zebra"),
+                SimpleNamespace(name="has.dot"),
                 SimpleNamespace(name="company_acme"),
                 SimpleNamespace(name="company_acme"),
             ],
@@ -47,7 +47,7 @@ async def test_get_workspaces_endpoint(async_client: AsyncClient) -> None:
     mock_qdrant = AsyncMock(spec=AsyncQdrantClient)
     mock_qdrant.get_collections = AsyncMock(
         return_value=SimpleNamespace(
-            collections=[SimpleNamespace(name="company_demo"), SimpleNamespace(name="company_x")],
+            collections=[SimpleNamespace(name="demo"), SimpleNamespace(name="x")],
         ),
     )
 

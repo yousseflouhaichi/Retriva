@@ -50,7 +50,7 @@ async def test_ingest_status_ready_json(mock_create_pool: AsyncMock, async_clien
 
     mock_redis = AsyncMock()
     mock_redis.get = AsyncMock(
-        return_value=json.dumps({"status": "ready", "chunks_indexed": 5, "collection": "company_demo"}),
+        return_value=json.dumps({"status": "ready", "chunks_indexed": 5, "collection": "demo"}),
     )
     mock_redis.aclose = AsyncMock()
     mock_create_pool.return_value = mock_redis
@@ -63,7 +63,7 @@ async def test_ingest_status_ready_json(mock_create_pool: AsyncMock, async_clien
     assert data["status"] == "ready"
     assert data["chunks_indexed"] == 5
     assert data["meta"] is not None
-    assert data["meta"].get("collection") == "company_demo"
+    assert data["meta"].get("collection") == "demo"
 
 
 @pytest.mark.asyncio

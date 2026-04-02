@@ -27,7 +27,7 @@ async def list_workspaces(
     qdrant: Annotated[AsyncQdrantClient, Depends(get_qdrant_client)],
 ) -> WorkspacesListResponse:
     """
-    Return workspace ids backed by existing Qdrant collections (company_*).
+    Return workspace ids backed by existing Qdrant collections (plain id or legacy company_*).
     """
 
     try:

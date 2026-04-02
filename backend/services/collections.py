@@ -1,7 +1,8 @@
 """
-Qdrant collection helpers for multi-tenant company namespacing.
+Qdrant collection helpers for multi-tenant workspace isolation.
 
-Ensures each company has an isolated vector collection before upserts.
+Collection names match the normalized workspace id. Legacy collections named
+company_{id} are still listed for backward compatibility.
 """
 
 from __future__ import annotations
@@ -13,7 +14,8 @@ from qdrant_client.models import Distance, VectorParams
 
 from backend.core.config import Settings
 
-COMPANY_COLLECTION_PREFIX = "company_"
+LEGACY_COMPANY_COLLECTION_PREFIX = "company_"
+_WORKSPACE_COLLECTION_RE = re.compile(r"^[a-zA-Z0-9_-]+$")
 
 
 def company_safe_id(company_id: str) -> str:
@@ -39,30 +41,50 @@ def company_safe_id(company_id: str) -> str:
 
 def company_collection_name(company_id: str) -> str:
     """
-    Build the Qdrant collection name for a company.
+    Build the Qdrant collection name for a workspace.
 
     Args:
         company_id: Tenant identifier from the API.
 
     Returns:
-        str: Collection name in the form company_{safe_suffix}.
+        str: Collection name equal to the normalized workspace id (no prefix).
 
     Raises:
         ValueError: If company_id cannot be normalized to a non-empty safe id.
     """
 
-    return f"{COMPANY_COLLECTION_PREFIX}{company_safe_id(company_id)}"
+    return company_safe_id(company_id)
+
+
+def _workspace_id_from_collection_name(collection_name: str) -> str | None:
+    """
+    Map a Qdrant collection name to a workspace id for GET /workspaces.
+
+    Accepts current naming (plain safe id) and legacy company_{safe_id}.
+    """
+
+    raw = str(collection_name).strip()
+    if not raw:
+        return None
+    if raw.startswith(LEGACY_COMPANY_COLLECTION_PREFIX):
+        suffix = raw[len(LEGACY_COMPANY_COLLECTION_PREFIX) :]
+        if suffix and _WORKSPACE_COLLECTION_RE.fullmatch(suffix):
+            return suffix
+        return None
+    if _WORKSPACE_COLLECTION_RE.fullmatch(raw):
+        return raw
+    return None
 
 
 async def list_tenant_workspace_ids(client: AsyncQdrantClient) -> list[str]:
     """
-    List company_id suffixes for every Qdrant collection owned by the app prefix.
+    List workspace ids for every Qdrant collection that matches app naming rules.
 
     Args:
         client: Async Qdrant HTTP client.
 
     Returns:
-        Sorted unique workspace ids (safe suffixes after company_).
+        Sorted unique workspace ids (plain safe names or legacy company_ suffixes).
 
     Raises:
         Exception: Propagates Qdrant client errors for the router to map to HTTP.
@@ -71,12 +93,9 @@ async def list_tenant_workspace_ids(client: AsyncQdrantClient) -> list[str]:
     response = await client.get_collections()
     seen: set[str] = set()
     for coll in response.collections:
-        name = str(coll.name)
-        if not name.startswith(COMPANY_COLLECTION_PREFIX):
-            continue
-        suffix = name[len(COMPANY_COLLECTION_PREFIX) :].strip()
-        if suffix:
-            seen.add(suffix)
+        wid = _workspace_id_from_collection_name(str(coll.name))
+        if wid:
+            seen.add(wid)
     return sorted(seen)
 
 

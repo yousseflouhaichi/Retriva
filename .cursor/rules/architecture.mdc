@@ -46,7 +46,7 @@ multimodal-rag/
 ```
 
 ## Multi-tenancy
-- Every Qdrant collection is named company_{company_id}
+- Every Qdrant collection name equals the normalized workspace id (same as company_id in the API)
 - Every BM25 index is keyed by company_id
 - company_id is required on every ingestion and query request
 - Never mix data across collections

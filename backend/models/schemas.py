@@ -35,7 +35,7 @@ class QueryRequest(BaseModel):
 
 class WorkspacesListResponse(BaseModel):
     """
-    Tenant workspace ids derived from Qdrant collection names (company_*).
+    Tenant workspace ids derived from Qdrant collection names (workspace id or legacy company_*).
     """
 
     workspaces: list[str] = Field(description="Sorted unique workspace ids with indexed data in Qdrant")

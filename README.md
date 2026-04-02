@@ -23,8 +23,10 @@ uv run uvicorn backend.main:app --reload --port 8080
 Health check:
 - `GET /health`
 
-Workspaces (for the UI dropdown): Qdrant collections named `company_*` are listed by
-- `GET /workspaces` (returns JSON `{"workspaces": ["id", ...]}` sorted; id is the suffix after `company_`)
+Workspaces (for the UI dropdown): Qdrant collections whose names are valid workspace ids (letters, digits, `-`, `_`) are listed by
+- `GET /workspaces` (returns JSON `{"workspaces": ["id", ...]}` sorted). Legacy collections named `company_{id}` still appear as `id`.
+
+New data is stored under the plain id collection (for example `demo`, not `company_demo`). If you still have vectors only under `company_{id}`, migrate or re-ingest into the plain-named collection.
 
 System status (dependency checks, non-secret model metadata, and ARQ ingestion queue snapshot):
 - `GET /status` (includes `ingestion_worker`: queue depth and worker heartbeat from Redis)
