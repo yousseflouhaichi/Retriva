@@ -47,6 +47,8 @@ export function UploadZone({ workspaceId, apiBaseUrl, compact = false, onIngestS
         return;
       }
       setUserError(null);
+      readyNotifiedRef.current = false;
+      setJobId(null);
       setPhase("uploading");
       setDetail(null);
       setChunks(null);
