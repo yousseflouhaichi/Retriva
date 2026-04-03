@@ -114,9 +114,6 @@ export function UploadZone({ workspaceId, apiBaseUrl, compact = false, onIngestS
         >
           <Upload className={cn("mb-2 opacity-60", compact ? "h-6 w-6" : "h-8 w-8")} aria-hidden />
           <p className="font-medium text-foreground/90">Drop files or click to choose</p>
-          <p className="mt-1 max-w-[260px] text-muted-foreground">
-            Each file gets its own job. You can add more while others are processing.
-          </p>
         </div>
         <input
           ref={fileInputRef}

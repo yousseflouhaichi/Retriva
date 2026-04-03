@@ -110,9 +110,6 @@ export function ChatWindow({
           </div>
           <div>
             <CardTitle className={titleClass}>Chat</CardTitle>
-            {!compact && (
-              <p className="text-xs text-muted-foreground">Scroll inside the panel to read earlier messages.</p>
-            )}
           </div>
         </div>
       </CardHeader>
