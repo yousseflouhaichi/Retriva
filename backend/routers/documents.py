@@ -23,15 +23,14 @@ async def list_company_documents(
     limit: Annotated[
         int | None,
         Query(
-            default=None,
             ge=1,
             description="Page size after aggregation (defaults from config, capped by max)",
         ),
-    ],
+    ] = None,
     offset: Annotated[
         int,
-        Query(default=0, ge=0, description="Skip this many documents in the sorted list"),
-    ],
+        Query(ge=0, description="Skip this many documents in the sorted list"),
+    ] = 0,
 ) -> DocumentIndexResponse:
     """
     List distinct document_name values in the tenant Qdrant collection with chunk counts.
