@@ -23,7 +23,7 @@ router = APIRouter()
 
 
 @router.get("/health", response_model=HealthResponse)
-async def health(settings: Settings = Depends(get_settings)) -> HealthResponse:
+async def health(settings: Annotated[Settings, Depends(get_settings)]) -> HealthResponse:
     """
     Lightweight health check for the API process.
     """

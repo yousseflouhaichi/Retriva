@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Annotated
 from uuid import uuid4
 
 from arq import create_pool
@@ -82,9 +83,9 @@ def _ingest_status_from_redis_value(job_id: str, data: str) -> IngestStatusRespo
 @router.post("/upload", response_model=IngestUploadResponse, status_code=202)
 async def ingest_upload(
     company_id: str,
-    file: UploadFile = File(...),
-    settings: Settings = Depends(get_settings),
-    qdrant: AsyncQdrantClient = Depends(get_qdrant_client),
+    settings: Annotated[Settings, Depends(get_settings)],
+    qdrant: Annotated[AsyncQdrantClient, Depends(get_qdrant_client)],
+    file: Annotated[UploadFile, File(...)],
 ) -> IngestUploadResponse:
     """
     Accept a file upload and enqueue an ARQ ingestion job.
@@ -152,7 +153,10 @@ async def ingest_upload(
 
 
 @router.get("/status/{job_id}", response_model=IngestStatusResponse)
-async def ingest_status(job_id: str, settings: Settings = Depends(get_settings)) -> IngestStatusResponse:
+async def ingest_status(
+    job_id: str,
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> IngestStatusResponse:
     """
     Get ingestion job status written by the ARQ worker.
     """

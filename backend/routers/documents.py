@@ -18,14 +18,20 @@ router = APIRouter()
 @router.get("/documents", response_model=DocumentIndexResponse)
 async def list_company_documents(
     company_id: str,
-    qdrant: AsyncQdrantClient = Depends(get_qdrant_client),
-    settings: Settings = Depends(get_settings),
-    limit: int | None = Query(
-        default=None,
-        ge=1,
-        description="Page size after aggregation (defaults from config, capped by max)",
-    ),
-    offset: int = Query(default=0, ge=0, description="Skip this many documents in the sorted list"),
+    qdrant: Annotated[AsyncQdrantClient, Depends(get_qdrant_client)],
+    settings: Annotated[Settings, Depends(get_settings)],
+    limit: Annotated[
+        int | None,
+        Query(
+            default=None,
+            ge=1,
+            description="Page size after aggregation (defaults from config, capped by max)",
+        ),
+    ],
+    offset: Annotated[
+        int,
+        Query(default=0, ge=0, description="Skip this many documents in the sorted list"),
+    ],
 ) -> DocumentIndexResponse:
     """
     List distinct document_name values in the tenant Qdrant collection with chunk counts.

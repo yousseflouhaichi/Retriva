@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Annotated
+
 from fastapi import APIRouter, Depends
 
 from backend.core.config import Settings, get_settings
@@ -10,7 +12,7 @@ router = APIRouter()
 
 
 @router.get("/status", response_model=SystemStatusResponse)
-async def system_status(settings: Settings = Depends(get_settings)) -> SystemStatusResponse:
+async def system_status(settings: Annotated[Settings, Depends(get_settings)]) -> SystemStatusResponse:
     """
     Dependency health and safe app metadata for system status and settings UIs.
     """

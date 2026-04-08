@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
 from sse_starlette.sse import EventSourceResponse
@@ -15,7 +16,10 @@ router = APIRouter()
 
 
 @router.post("/stream")
-async def query_stream(request: QueryRequest, settings: Settings = Depends(get_settings)) -> EventSourceResponse:
+async def query_stream(
+    request: QueryRequest,
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> EventSourceResponse:
     """
     Run LangGraph transform and hybrid retrieval, then stream a grounded answer over SSE.
     """

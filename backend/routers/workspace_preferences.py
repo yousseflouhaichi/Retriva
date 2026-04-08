@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Annotated
+
 from fastapi import APIRouter, Depends, HTTPException
 
 from backend.core.config import Settings, get_settings
@@ -13,7 +15,7 @@ router = APIRouter()
 @router.get("/workspace/preferences", response_model=WorkspacePreferences)
 async def get_workspace_preferences(
     company_id: str,
-    settings: Settings = Depends(get_settings),
+    settings: Annotated[Settings, Depends(get_settings)],
 ) -> WorkspacePreferences:
     """
     Return persisted UI preferences for a workspace, merged with defaults when unset.
@@ -40,7 +42,7 @@ async def get_workspace_preferences(
 async def update_workspace_preferences(
     body: WorkspacePreferencesPatch,
     company_id: str,
-    settings: Settings = Depends(get_settings),
+    settings: Annotated[Settings, Depends(get_settings)],
 ) -> WorkspacePreferences:
     """
     Patch UI preferences for a workspace (theme, density, streaming indicator).
