@@ -1,0 +1,74 @@
+# Production stack: Qdrant, Redis, Unstructured, API, worker.
+# Run from repo root: docker compose -f deploy/docker-compose.prod.yml --env-file .env up -d --build
+#
+# Use .env with Docker service hostnames (see .env.production.example). Bind API to loopback only;
+# terminate TLS with Caddy on the host (see deploy/Caddyfile.example).
+
+services:
+  qdrant:
+    image: qdrant/qdrant:latest
+    restart: unless-stopped
+    volumes:
+      - qdrant_data:/qdrant/storage
+    networks: [rag_internal]
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    networks: [rag_internal]
+
+  unstructured:
+    image: downloads.unstructured.io/unstructured-io/unstructured-api:latest
+    restart: unless-stopped
+    environment:
+      - UNSTRUCTURED_API_KEY=
+    networks: [rag_internal]
+
+  api:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    image: rag-project-app:latest
+    restart: unless-stopped
+    command: uvicorn backend.main:app --host 0.0.0.0 --port 8080
+    ports:
+      - "127.0.0.1:8080:8080"
+    env_file:
+      - ../.env
+    environment:
+      UPLOAD_DIR: /app/uploads
+    volumes:
+      - uploads_data:/app/uploads
+    depends_on:
+      - redis
+      - qdrant
+      - unstructured
+    networks: [rag_internal]
+
+  worker:
+    image: rag-project-app:latest
+    restart: unless-stopped
+    command: arq backend.workers.ingestion_worker.WorkerSettings
+    env_file:
+      - ../.env
+    environment:
+      UPLOAD_DIR: /app/uploads
+    volumes:
+      - uploads_data:/app/uploads
+    depends_on:
+      - redis
+      - qdrant
+      - unstructured
+    networks: [rag_internal]
+
+networks:
+  rag_internal:
+    driver: bridge
+
+volumes:
+  qdrant_data:
+  redis_data:
+  uploads_data:

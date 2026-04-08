@@ -7,5 +7,4 @@ uploads/
 node_modules/
 dist/
 *.egg-info/
-uv.lock
 .cursor/

@@ -13,6 +13,16 @@ docker compose up -d
 
 ### Configure environment
 - Copy `.env.example` to `.env` and fill in keys as needed.
+- Python dependencies are pinned in `uv.lock`; use `uv sync --frozen` in CI and Docker for reproducible installs.
+- Document parsing uses the **Unstructured HTTP API** (Docker Compose service). The backend does not import the `unstructured` Python package; keep the Unstructured container running for ingestion.
+
+### CI / CD
+- **CI** (`.github/workflows/ci.yml`): on pushes and pull requests to `main`, runs `pytest` and `frontend` tests + production build (`VITE_API_URL=/api`), uploads the `frontend/dist` artifact as `frontend-dist`.
+- **Deploy** (`.github/workflows/deploy.yml`): after a successful CI run on `main` or `master` (push only), rsyncs the static site to `/var/www/rag` on your server and runs `git pull` + `docker compose -f deploy/docker-compose.prod.yml ... up -d --build`. Configure GitHub repository secrets per [DEPLOY.md](DEPLOY.md).
+
+### Production / demo deploy
+- Full steps, Oracle VM, Caddy, and secrets are documented in **[DEPLOY.md](DEPLOY.md)**.
+- **Demo warning:** there is no end-user authentication; a public URL will consume your API provider quotas. Keep dependency containers off the public internet (the sample Compose binds the API to `127.0.0.1:8080` only).
 
 ### Run the API
 

@@ -1,0 +1,28 @@
+# Example Caddy config: HTTPS, static frontend, /api reverse proxy to Docker API (127.0.0.1:8080).
+#
+# Install Caddy on the host (not in Compose). Copy to /etc/caddy/Caddyfile or merge into your site.
+# Replace YOUR_DOMAIN with your DNS name (e.g. rag.example.com).
+#
+# Frontend files: rsync CI artifact to /var/www/rag (see DEPLOY.md).
+
+YOUR_DOMAIN {
+	encode gzip zstd
+
+	# Strip /api prefix so FastAPI receives /health, /query/stream, etc. (matches Vite dev proxy).
+	handle_path /api/* {
+		reverse_proxy 127.0.0.1:8080 {
+			# SSE: avoid buffering token streams
+			flush_interval -1
+			transport http {
+				read_timeout 3600s
+				write_timeout 3600s
+			}
+		}
+	}
+
+	handle {
+		root * /var/www/rag
+		try_files {path} /index.html
+		file_server
+	}
+}
