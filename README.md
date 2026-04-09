@@ -20,7 +20,7 @@ docker compose up -d
 
 ### CI / CD
 - **CI** (`.github/workflows/ci.yml`): on pushes and pull requests to `main`, runs `pytest` and `frontend` tests + production build (`VITE_API_URL=/api`), uploads the `frontend/dist` artifact as `frontend-dist`.
-- **Deploy** (`.github/workflows/deploy.yml`): after a successful CI run on `main` or `master` (push only), rsyncs the static site to `/var/www/rag` on your server and runs `git pull` + `docker compose -f deploy/docker-compose.prod.yml ... up -d --build`. Configure GitHub repository secrets per [DEPLOY.md](DEPLOY.md).
+- **Deploy** (`.github/workflows/deploy.yml`): **manual only** (Actions → Deploy → Run workflow). It does not run on push. It downloads the latest `frontend-dist` artifact from **CI** on the selected branch, then rsyncs and runs Docker Compose on the server. Configure secrets per [DEPLOY.md](DEPLOY.md).
 
 ### Production / demo deploy
 - Full steps, Oracle VM, Caddy, and secrets are documented in **[DEPLOY.md](DEPLOY.md)**.

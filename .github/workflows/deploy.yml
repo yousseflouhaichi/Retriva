@@ -1,10 +1,9 @@
 name: Deploy
 
+# CD is manual-only until you re-enable automatic deploys. Pushes do not run this workflow.
+# To deploy: Actions → Deploy → Run workflow (requires CI artifact from a recent run on the same branch).
 on:
-  workflow_run:
-    workflows: [CI]
-    types:
-      - completed
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -16,20 +15,17 @@ concurrency:
 
 jobs:
   deploy:
-    if: >
-      github.event.workflow_run.conclusion == 'success' &&
-      github.event.workflow_run.head_repository.full_name == github.repository &&
-      (github.event.workflow_run.head_branch == 'main' || github.event.workflow_run.head_branch == 'master') &&
-      github.event.workflow_run.event == 'push'
     runs-on: ubuntu-latest
     steps:
-      - name: Download frontend artifact
+      - name: Download frontend artifact (latest CI on this branch)
         uses: dawidd6/action-download-artifact@v6
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          run_id: ${{ github.event.workflow_run.id }}
+          workflow: ci.yml
+          branch: ${{ github.ref_name }}
           name: frontend-dist
           path: dist
+          if_no_artifact_found: fail
 
       - name: Start ssh-agent
         uses: webfactory/ssh-agent@v0.9.0
@@ -57,7 +53,7 @@ jobs:
             DP="${{ secrets.DEPLOY_PATH }}"
             if [ -z "$DP" ]; then DP="/opt/rag-project"; fi
             cd "$DP"
-            BRANCH="${{ github.event.workflow_run.head_branch }}"
+            BRANCH="${{ github.ref_name }}"
             git fetch origin "$BRANCH"
             git checkout "$BRANCH"
             git pull --ff-only origin "$BRANCH"

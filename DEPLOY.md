@@ -84,11 +84,13 @@ curl -sS http://127.0.0.1:8080/health
 
 ### What deploy does
 
-On each successful **CI** run on your default integration branch (`main` or `master`), the **Deploy** workflow:
+The **Deploy** workflow is **manual only** (GitHub **Actions** → **Deploy** → **Run workflow**). It does **not** run on push.
 
-1. Downloads the `frontend-dist` artifact from that CI run.
+1. Downloads the latest `frontend-dist` artifact from **CI** on the branch you select when you run the workflow.
 2. `rsync`s it to `/var/www/rag` on the VM.
 3. SSHs in, runs `git pull` and `docker compose -f deploy/docker-compose.prod.yml ... up -d --build`.
+
+Run **CI** on that branch first (push or PR merge) so the artifact exists, or the deploy job will fail at the download step.
 
 Ensure the VM user can:
 
@@ -105,7 +107,7 @@ git pull
 docker compose -f deploy/docker-compose.prod.yml --env-file .env up -d --build
 ```
 
-Copy a built `frontend/dist` once to `/var/www/rag` (or wait for the first green CD run).
+Copy a built `frontend/dist` once to `/var/www/rag` (or run the **Deploy** workflow manually after a green **CI** run).
 
 ## Troubleshooting
 
