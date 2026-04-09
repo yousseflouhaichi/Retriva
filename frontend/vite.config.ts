@@ -18,7 +18,12 @@ export default defineConfig(({ mode }) => {
       },
     },
     server: {
+      // Listen on all interfaces (0.0.0.0 / ::). Default "localhost" can bind IPv6-only on Windows while
+      // cloudflared uses http://127.0.0.1:5173 (IPv4) -> 502 Bad Gateway.
+      host: true,
       port: 5173,
+      // Quick Tunnel hostnames (*.trycloudflare.com) are not localhost; allow them for demos.
+      allowedHosts: true,
       proxy: {
         "/api": {
           target: apiTarget,
