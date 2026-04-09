@@ -23,7 +23,7 @@ async def get_qdrant_client(
     """
 
     cfg = settings
-    client = AsyncQdrantClient(url=cfg.qdrant_url)
+    client = AsyncQdrantClient(url=cfg.qdrant_url, timeout=cfg.qdrant_api_timeout_seconds)
     try:
         yield client
     finally:

@@ -13,6 +13,8 @@ docker compose up -d
 
 ### Configure environment
 - Copy `.env.example` to `.env` and fill in keys as needed.
+- On **Windows + Docker Desktop**, keep `QDRANT_URL`, `REDIS_URL`, and `UNSTRUCTURED_API_URL` on **`127.0.0.1`** (not `localhost`) so clients do not target IPv6 `::1` while ports are bound on IPv4 (avoids hung `/status` and `/workspaces`).
+- Use `KEY=value` in `.env` with **no spaces** around `=` so variables load correctly.
 - Python dependencies are pinned in `uv.lock`; use `uv sync --frozen` in CI and Docker for reproducible installs.
 - Document parsing uses the **Unstructured HTTP API** (Docker Compose service). The backend does not import the `unstructured` Python package; keep the Unstructured container running for ingestion.
 

@@ -34,12 +34,12 @@ def _safe_error_detail(exc: BaseException) -> str:
     return "unavailable"
 
 
-async def _check_qdrant(url: str) -> DependencyCheckResult:
+async def _check_qdrant(url: str, timeout_seconds: int) -> DependencyCheckResult:
     """
     Verify Qdrant responds to list collections.
     """
 
-    client = AsyncQdrantClient(url=url)
+    client = AsyncQdrantClient(url=url, timeout=timeout_seconds)
     try:
         await client.get_collections()
         return DependencyCheckResult(name="qdrant", ok=True, detail=None)
@@ -119,7 +119,9 @@ async def build_system_status(settings: Settings) -> SystemStatusResponse:
     """
 
     timeout = max(0.5, min(settings.status_dependency_timeout_seconds, 30.0))
-    qdrant_task = asyncio.create_task(_check_qdrant(settings.qdrant_url))
+    qdrant_task = asyncio.create_task(
+        _check_qdrant(settings.qdrant_url, settings.qdrant_api_timeout_seconds),
+    )
     redis_task = asyncio.create_task(_check_redis(settings.redis_url))
     unstructured_task = asyncio.create_task(
         _check_unstructured(settings.unstructured_api_url, timeout),

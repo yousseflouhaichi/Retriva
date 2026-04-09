@@ -27,9 +27,13 @@ class Settings(BaseSettings):
     openai_api_key: str = Field(default="", alias="OPENAI_API_KEY")
     cohere_api_key: str = Field(default="", alias="COHERE_API_KEY")
 
-    qdrant_url: str = Field(default="http://localhost:6333", alias="QDRANT_URL")
-    unstructured_api_url: str = Field(default="http://localhost:8000", alias="UNSTRUCTURED_API_URL")
-    redis_url: str = Field(default="redis://localhost:6379", alias="REDIS_URL")
+    qdrant_url: str = Field(
+        default="http://127.0.0.1:6333",
+        alias="QDRANT_URL",
+        description="Use 127.0.0.1 on Windows+Docker Desktop to avoid localhost->IPv6 (::1) hangs.",
+    )
+    unstructured_api_url: str = Field(default="http://127.0.0.1:8000", alias="UNSTRUCTURED_API_URL")
+    redis_url: str = Field(default="redis://127.0.0.1:6379", alias="REDIS_URL")
 
     upload_dir: str = Field(default="./uploads", alias="UPLOAD_DIR")
 
@@ -61,6 +65,12 @@ class Settings(BaseSettings):
     )
 
     status_dependency_timeout_seconds: float = Field(default=3.0, alias="STATUS_DEPENDENCY_TIMEOUT_SECONDS")
+
+    qdrant_api_timeout_seconds: int = Field(
+        default=30,
+        alias="QDRANT_API_TIMEOUT_SECONDS",
+        description="REST timeout (seconds) for AsyncQdrantClient; avoids indefinite hangs when Qdrant is unreachable.",
+    )
 
     qdrant_upsert_batch_size: int = Field(default=64, alias="QDRANT_UPSERT_BATCH_SIZE")
     document_list_scroll_batch_size: int = Field(default=256, alias="DOCUMENT_LIST_SCROLL_BATCH_SIZE")
@@ -120,6 +130,8 @@ class Settings(BaseSettings):
             raise ValueError("QUERY_ANSWER_MAX_TOKENS must be at least 1")
         if self.status_dependency_timeout_seconds <= 0:
             raise ValueError("STATUS_DEPENDENCY_TIMEOUT_SECONDS must be positive")
+        if self.qdrant_api_timeout_seconds < 1:
+            raise ValueError("QDRANT_API_TIMEOUT_SECONDS must be at least 1")
         if self.document_list_scroll_batch_size < 1:
             raise ValueError("DOCUMENT_LIST_SCROLL_BATCH_SIZE must be at least 1")
         if self.document_index_max_points_scanned < 1:
